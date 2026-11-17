@@ -35,7 +35,7 @@ jobs:
           try {
             $v = Invoke-RestMethod -Uri 'https://api.cloudflare.com/client/v4/user/tokens/verify' -Headers $h
             Write-Host ("token durumu: " + $v.result.status)
-          try { Write-Host ("TOKEN GECERSIZ: " + $_.Exception.Message); exit 1 }
+          } catch { Write-Host ("TOKEN GECERSIZ: " + $_.Exception.Message); exit 1 }
           Write-Host ("kullanilan hesap: " + $env:CLOUDFLARE_ACCOUNT_ID)
           try {
             $a = Invoke-RestMethod -Uri 'https://api.cloudflare.com/client/v4/accounts' -Headers $h
