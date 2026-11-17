@@ -53,7 +53,8 @@ if ($qHtml) {
 $queryOptions = $script:queryOptions
 
 # --- gun verisi ---
-$bugun = Get-Date
+# GitHub sunucusu UTC saat kullanir; TJK Turkiye saatine (UTC+3) gore yayin yapar.
+$bugun = [DateTime]::UtcNow.AddHours(3)
 $tarih = $bugun.ToString('dd/MM/yyyy', $script:CIV)
 $payload = Build-Payload $tarih $false
 if (-not $payload) { Log "gun verisi alinamadi"; }
