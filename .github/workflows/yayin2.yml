@@ -35,7 +35,12 @@ jobs:
           try {
             $v = Invoke-RestMethod -Uri 'https://api.cloudflare.com/client/v4/user/tokens/verify' -Headers $h
             Write-Host ("token durumu: " + $v.result.status)
-          } catch { Write-Host ("TOKEN GECERSIZ: " + $_.Exception.Message); exit 1 }
+          try { Write-Host ("TOKEN GECERSIZ: " + $_.Exception.Message); exit 1 }
+          Write-Host ("kullanilan hesap: " + $env:CLOUDFLARE_ACCOUNT_ID)
+          try {
+            $a = Invoke-RestMethod -Uri 'https://api.cloudflare.com/client/v4/accounts' -Headers $h
+            Write-Host ("hesap listesi: " + (@($a.result | ForEach-Object { $_.id }) -join ', '))
+          } catch { Write-Host ("HESAP LISTESI HATASI: " + $_.Exception.Message) }
           try {
             $u = "https://api.cloudflare.com/client/v4/accounts/$env:CLOUDFLARE_ACCOUNT_ID/pages/projects"
             $p = Invoke-RestMethod -Uri $u -Headers $h
