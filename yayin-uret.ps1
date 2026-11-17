@@ -150,10 +150,11 @@ foreach ($tip in $tipler.Keys) {
 if ($SadeceVeri) { Log "sadece veri istendi, HTML atlandi"; return }
 
 # --- statik sayfalar ---
-Copy-Item (Join-Path $root 'turler.html') (Join-Path $OutDir 'turler.html') -Force
-Copy-Item (Join-Path $root 'jokeyler.html') (Join-Path $OutDir 'jokeyler.html') -Force
-Copy-Item (Join-Path $root 'sw.js') (Join-Path $OutDir 'sw.js') -Force
-Copy-Item (Join-Path $root 'manifest.webmanifest') (Join-Path $OutDir 'manifest.webmanifest') -Force
+foreach ($f in @('turler.html', 'jokeyler.html', 'sw.js', 'manifest.webmanifest')) {
+    $kaynak = Join-Path $root $f
+    if (Test-Path $kaynak) { Copy-Item $kaynak (Join-Path $OutDir $f) -Force }
+    else { Log ("uyari: $f bulunamadi, atlandi") }
+}
 if (Test-Path (Join-Path $root 'icons')) { Copy-Item (Join-Path $root 'icons') $OutDir -Recurse -Force }
 
 $shell = Build-Shell $tarih
