@@ -1,0 +1,19 @@
+name: TJK erisim testi
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: windows-latest
+    steps:
+      - name: TJK sayfasini cek
+        shell: pwsh
+        run: |
+          $ua = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0 Safari/537.36'
+          try {
+            $r = Invoke-WebRequest -Uri 'https://www.tjk.org/TR/YarisSever/Query/Page/KosuSorgulama' -UseBasicParsing -TimeoutSec 40 -UserAgent $ua
+            Write-Host ("HTTP " + $r.StatusCode + " | " + $r.RawContentLength)
+            if ($r.Content -match 'KosuCinsi') { Write-Host 'ICERIK OK' } else { Write-Host 'ICERIK TANINMADI' }
+          } catch {
+            Write-Host ("HATA: " + $_.Exception.Message)
+            exit 1
+          }
