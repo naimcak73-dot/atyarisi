@@ -1,0 +1,46 @@
+name: Yayin
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '*/15 * * * *'
+concurrency:
+  group: yayin
+  cancel-in-progress: true
+permissions:
+  contents: write
+jobs:
+  yayinla:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Veri uret
+        shell: pwsh
+        run: ./yayin-uret.ps1 -MaxAnaliz 12 -MaxStats 2
+
+      - name: Cloudflare projesi (yoksa olustur)
+        shell: pwsh
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx --yes wrangler@3 pages project create atyarisi --production-branch=main 2>$null; Write-Host "proje kontrolu bitti"
+
+      - name: Cloudflare Pages'e yukle
+        shell: pwsh
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx --yes wrangler@3 pages deploy public --project-name=atyarisi --branch=main --commit-dirty=true
+
+      - name: Istatistik kutuphanesini kaydet
+        shell: pwsh
+        run: |
+          git config user.name "atyarisi-bot"
+          git config user.email "bot@users.noreply.github.com"
+          git add veri/istatistik-*.json veri/analiz-*.json
+          if (git diff --cached --quiet) { Write-Host "kutuphane degismedi" } else {
+            git commit -m "istatistik kutuphanesi guncellendi"
+            git pull --rebase
+            git push
+          }
