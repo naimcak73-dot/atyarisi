@@ -24,10 +24,11 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-
-        npx --yes wrangler@3 pages project create atyarisi --production-branch=main
-          Write-Host "cikis=$LASTEXITCODE"
+        run: |
+          npx --yes wrangler@3 pages project create atyarisi --production-branch=main
+          Write-Host "cikis kodu: $LASTEXITCODE"
           exit 0
+
       - name: Cloudflare Pages'e yukle
         shell: pwsh
         env:
