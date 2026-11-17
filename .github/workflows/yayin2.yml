@@ -15,61 +15,35 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Kimlikleri duzelt
-        shell: pwsh
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: |
-          $t = (($env:CLOUDFLARE_API_TOKEN) -replace '\s','')
-          $a = (($env:CLOUDFLARE_ACCOUNT_ID) -replace '\s','')
-          "CLOUDFLARE_API_TOKEN=$t" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
-          "CLOUDFLARE_ACCOUNT_ID=$a" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
-          Write-Host "token uzunluk: $($t.Length) | hesap kimligi uzunluk: $($a.Length)"
-          if ($a.Length -ne 32) { Write-Host "UYARI: hesap kimligi 32 karakter degil" }
-
-      - name: Token kontrol
-        shell: pwsh
-        run: |
-          $h = @{ Authorization = "Bearer $env:CLOUDFLARE_API_TOKEN" }
-          try {
-            $v = Invoke-RestMethod -Uri 'https://api.cloudflare.com/client/v4/user/tokens/verify' -Headers $h
-            Write-Host ("token durumu: " + $v.result.status)
-          } catch { Write-Host ("TOKEN GECERSIZ: " + $_.Exception.Message); exit 1 }
-          Write-Host ("kullanilan hesap: " + $env:CLOUDFLARE_ACCOUNT_ID)
-          try {
-            $a = Invoke-RestMethod -Uri 'https://api.cloudflare.com/client/v4/accounts' -Headers $h
-            Write-Host ("hesap listesi: " + (@($a.result | ForEach-Object { $_.id }) -join ', '))
-          } catch { Write-Host ("HESAP LISTESI HATASI: " + $_.Exception.Message) }
-          try {
-            $u = "https://api.cloudflare.com/client/v4/accounts/$env:CLOUDFLARE_ACCOUNT_ID/pages/projects"
-            $p = Invoke-RestMethod -Uri $u -Headers $h
-            Write-Host ("pages projeleri: " + @($p.result).Count)
-          } catch { Write-Host ("PAGES YETKI HATASI: " + $_.Exception.Message); exit 1 }
-
       - name: Veri uret
         shell: pwsh
         run: ./yayin-uret.ps1 -MaxAnaliz 6 -MaxStats 2
 
-      - name: Cloudflare projesi (yoksa olustur)
-        shell: pwsh
-        run: |
-          npx --yes wrangler@3 pages project create atyarisi --production-branch=main
-          Write-Host "cikis kodu: $LASTEXITCODE"
-          exit 0
-
-      - name: Cloudflare Pages'e yukle
-        shell: pwsh
-        run: npx --yes wrangler@3 pages deploy public --project-name=atyarisi --branch=main --commit-dirty=true
-
-      - name: Istatistik kutuphanesini kaydet
+      - name: Kutuphane degisikliklerini kaydet
         shell: pwsh
         run: |
           git config user.name "atyarisi-bot"
           git config user.email "bot@users.noreply.github.com"
           git add veri/istatistik-*.json veri/analiz-*.json
-          if (git diff --cached --quiet) { Write-Host "kutuphane degismedi" } else {
-            git commit -m "istatistik kutuphanesi guncellendi"
+          if (-not (git diff --cached --quiet)) {
+            git commit -m "kutuphane guncellendi"
             git pull --rebase
             git push
-          }
+          } else { Write-Host "kutuphane degismedi" }
+
+      - name: Yayin dalina gonder
+        shell: pwsh
+        run: |
+          git config user.name "atyarisi-bot"
+          git config user.email "bot@users.noreply.github.com"
+          $tmp = Join-Path $env:RUNNER_TEMP "yayin"
+          New-Item -ItemType Directory -Path $tmp -Force | Out-Null
+          Copy-Item -Path (Join-Path $PWD "public\*") -Destination $tmp -Recurse -Force
+          Set-Location $tmp
+          git init -q
+          git checkout -q -b yayin
+          git add -A
+          git commit -q -m "yayin"
+          $url = "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git"
+          git push -f $url yayin
+          Write-Host "yayin dali gonderildi"
