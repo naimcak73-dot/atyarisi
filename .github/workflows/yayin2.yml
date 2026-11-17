@@ -28,6 +28,20 @@ jobs:
           Write-Host "token uzunluk: $($t.Length) | hesap kimligi uzunluk: $($a.Length)"
           if ($a.Length -ne 32) { Write-Host "UYARI: hesap kimligi 32 karakter degil" }
 
+      - name: Token kontrol
+        shell: pwsh
+        run: |
+          $h = @{ Authorization = "Bearer $env:CLOUDFLARE_API_TOKEN" }
+          try {
+            $v = Invoke-RestMethod -Uri 'https://api.cloudflare.com/client/v4/user/tokens/verify' -Headers $h
+            Write-Host ("token durumu: " + $v.result.status)
+          } catch { Write-Host ("TOKEN GECERSIZ: " + $_.Exception.Message); exit 1 }
+          try {
+            $u = "https://api.cloudflare.com/client/v4/accounts/$env:CLOUDFLARE_ACCOUNT_ID/pages/projects"
+            $p = Invoke-RestMethod -Uri $u -Headers $h
+            Write-Host ("pages projeleri: " + @($p.result).Count)
+          } catch { Write-Host ("PAGES YETKI HATASI: " + $_.Exception.Message); exit 1 }
+
       - name: Veri uret
         shell: pwsh
         run: ./yayin-uret.ps1 -MaxAnaliz 6 -MaxStats 2
