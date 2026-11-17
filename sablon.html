@@ -1,0 +1,779 @@
+<!doctype html>
+<html lang="tr" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0f1115">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="At Yarışı">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/icons/icon-180.png">
+<title>At Yarışı Analizi — TJK</title>
+<style>
+  :root{
+    --bg:#0f1115; --card:#171a21; --card2:#1d222b; --ink:#e8ecf1; --muted:#98a2b3;
+    --line:#2a3140; --accent:#4f8cff; --good:#2fbf71; --warn:#f0a63c; --bad:#e0575b;
+    --kum:#8a5a2b; --cim:#2e7d32; --side:#12151b;
+  }
+  :root[data-theme="light"]{
+    --bg:#f5f7fb; --card:#ffffff; --card2:#f0f3f8; --ink:#1c2430; --muted:#5b6676;
+    --line:#dfe5ee; --accent:#2f6fe0; --good:#128a4b; --warn:#b9781d; --bad:#c23b3f; --side:#ffffff;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;background:var(--bg);color:var(--ink);line-height:1.45}
+  header{position:sticky;top:0;z-index:20;background:var(--bg);border-bottom:1px solid var(--line);padding:12px 16px}
+  .wrap{max-width:1400px;margin:0 auto}
+  h1{font-size:20px;margin:0 0 2px}
+  .sub{color:var(--muted);font-size:13px}
+  .datenav{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:10px}
+  .datenav button,.datenav select{padding:7px 11px;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:9px;cursor:pointer;font-size:13.5px}
+  .datenav .today{color:var(--accent);font-weight:600}
+  .loadbanner{position:fixed;left:50%;transform:translateX(-50%);top:10px;z-index:99;background:var(--accent);color:#fff;padding:8px 14px;border-radius:999px;font-size:13px;box-shadow:0 6px 18px rgba(0,0,0,.35);display:none;max-width:94vw}
+  .loadbanner button,.errorbar button{margin-left:8px;border:none;background:rgba(255,255,255,.22);color:#fff;border-radius:7px;padding:3px 9px;cursor:pointer;font-size:12.5px}
+  .errorbar{position:fixed;left:50%;transform:translateX(-50%);top:10px;z-index:99;background:var(--bad);color:#fff;padding:8px 14px;border-radius:999px;font-size:13px;box-shadow:0 6px 18px rgba(0,0,0,.35);display:block;max-width:94vw}
+  .verdict{border-radius:12px;padding:11px 14px;margin:2px 0 12px;border:1px solid var(--line);background:var(--card2)}
+  .verdict b{font-size:14px}
+  .verdict.v-yuksek{border-color:var(--bad);background:rgba(224,87,91,.12)}
+  .verdict.v-dusuk{border-color:var(--good);background:rgba(47,191,113,.12)}
+  .verdict.v-orta{border-color:var(--warn);background:rgba(240,166,60,.12)}
+  .verdict.v-yok{opacity:.7}
+  .verdict.v-program{border-color:var(--accent);background:rgba(79,140,255,.10)}
+  .layout{max-width:1400px;margin:0 auto;display:grid;grid-template-columns:minmax(0,1fr) 330px;gap:16px;padding:16px;align-items:start}
+  main{min-width:0}
+  aside{position:sticky;top:76px;background:var(--side);border:1px solid var(--line);border-radius:14px;padding:14px;max-height:calc(100vh - 92px);overflow:auto}
+  .side-h{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+  .side-h h3{margin:0;font-size:13px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+  .themetog{border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:8px;padding:5px 9px;cursor:pointer;font-size:12px}
+  .section-label{font-size:11.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin:14px 0 7px;font-weight:700}
+  .cityhead{font-size:16px;margin:18px 2px 6px;padding-bottom:6px;border-bottom:1px solid var(--line)}
+  .cities{display:flex;flex-wrap:wrap;gap:7px}
+  .citybtn{padding:7px 12px;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:999px;cursor:pointer;font-size:13px}
+  .citybtn.active{background:var(--accent);border-color:var(--accent);color:#fff}
+  .racechip{display:block;width:100%;text-align:left;padding:6px 10px;margin:4px 0;border-radius:9px;border:1px solid var(--line);background:var(--card);color:var(--ink);cursor:pointer;font-size:12.5px}
+  .racechip:hover{border-color:var(--accent)}
+  .side .rank{padding:4px 0}
+  .race{background:var(--card);border:1px solid var(--line);border-radius:14px;margin:14px 0;overflow:hidden;scroll-margin-top:80px}
+  .jokey-hit{color:#3ecf8e;font-weight:700}
+  .jokey-hit .small{color:#3ecf8e;font-weight:600}
+  .jokeybar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;background:#12211a;border:1px solid #2f6d4f;color:#cdebd8;border-radius:10px;padding:8px 12px;margin:6px 0 12px;font-size:13px}
+  .jokeybar a{color:#8fd6b0}
+  .jokeyfilter{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:6px 0 10px}
+  .jokeyfilter input{flex:1;min-width:200px;background:var(--card);color:var(--ink);border:1px solid var(--line);border-radius:9px;padding:8px 11px;font-size:13.5px}
+  .jokeyfilter input:focus{outline:none;border-color:#3ecf8e}
+  .chip.top4{background:#12211a;border-color:#2f6d4f;color:#cdebd8}
+  .rank[data-j]{cursor:pointer;border-radius:6px;padding-left:4px}
+  .rank[data-j]:hover{background:rgba(79,140,255,.10)}
+  .rank.selj{background:rgba(62,207,142,.14);border-left:2px solid #3ecf8e}
+  .race-h{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:13px 15px;cursor:pointer;user-select:none}
+  .race-h:hover{background:var(--card2)}
+  .race-no{font-weight:700;font-size:16px}
+  .chip{font-size:12px;padding:3px 9px;border-radius:999px;background:var(--card2);border:1px solid var(--line);color:var(--muted)}
+  .chip.pist{color:#fff;border:none}
+  .chip.pist.kum{background:var(--kum)} .chip.pist.cim{background:var(--cim)}
+  .chip.done{background:rgba(47,191,113,.16);color:var(--good);border-color:transparent}
+  .chip.link{text-decoration:none;color:var(--accent);border-color:var(--accent)}
+  .chip.link:hover{background:var(--accent);color:#fff}
+  .spacer{flex:1}
+  .toggle{color:var(--muted);font-size:13px}
+  .race-b{padding:0 15px 15px}
+  table{width:100%;border-collapse:collapse;font-size:13.5px}
+  th,td{padding:8px 7px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap}
+  th{color:var(--muted);font-weight:600;font-size:11.5px;text-transform:uppercase;letter-spacing:.03em}
+  td.num,th.num{text-align:right}
+  tr:last-child td{border-bottom:none}
+  .name{font-weight:600;white-space:normal}
+  .small{color:var(--muted);font-size:12px}
+  .badge{display:inline-block;font-size:11px;padding:2px 7px;border-radius:7px;font-weight:600}
+  .b-kum{background:rgba(138,90,43,.18);color:#c98a4b}
+  .b-cim{background:rgba(46,125,50,.18);color:#4caf50}
+  .b-dengeli{background:rgba(240,166,60,.16);color:var(--warn)}
+  .b-yok{color:var(--muted)}
+  .panels{display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:12px;margin-top:14px}
+  .panel{background:var(--card2);border:1px solid var(--line);border-radius:11px;padding:12px}
+  .panel h4{margin:0 0 8px;font-size:13px;letter-spacing:.02em}
+  .rank{display:flex;justify-content:space-between;gap:10px;padding:5px 0;border-bottom:1px dashed var(--line);font-size:13px}
+  .rank:last-child{border-bottom:none}
+  .rank b{color:var(--ink)}
+  .star{color:var(--warn)}
+  .btn-stats{margin-top:14px;padding:9px 16px;border-radius:10px;border:1px solid var(--accent);background:transparent;color:var(--accent);cursor:pointer;font-weight:600}
+  .btn-stats:hover{background:var(--accent);color:#fff}
+  .stats{margin-top:12px;border-top:1px solid var(--line);padding-top:12px}
+  .bars{display:flex;flex-direction:column;gap:6px}
+  .bar{display:grid;grid-template-columns:78px 1fr 52px;align-items:center;gap:8px;font-size:12.5px}
+  .bar .track{height:9px;background:var(--card);border-radius:6px;overflow:hidden}
+  .bar .fill{height:100%;background:var(--accent)}
+  .kpi{display:flex;gap:18px;flex-wrap:wrap;margin:8px 0}
+  .kpi div{font-size:13px}
+  .kpi b{font-size:17px;display:block}
+  .ok{color:var(--good)} .no{color:var(--bad)} .mut{color:var(--muted)}
+  footer{color:var(--muted);font-size:12px;text-align:center;padding:26px 16px}
+  .note{font-size:12px;color:var(--muted);margin-top:6px}
+  .hrow{display:flex;align-items:center;justify-content:space-between;gap:10px}
+  .topbar{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:4px}
+  .datenav{display:flex;align-items:center;gap:6px;position:relative}
+  .datenav button{padding:7px 11px;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:9px;cursor:pointer}
+  .datenav .dtlbl{font-weight:600;min-width:150px;text-align:center}
+  .datenav .mini{font-size:12px;padding:6px 9px;color:var(--accent)}
+  .dthide{position:absolute;left:0;bottom:0;opacity:0;width:0;height:0;border:0;padding:0}
+  .citybar{display:flex;gap:6px;overflow-x:auto;padding:2px 0;max-width:100%;scrollbar-width:none}
+  .citybar::-webkit-scrollbar{display:none}
+  .citybar .citybtn{white-space:nowrap;flex:0 0 auto}
+  .citybtn.yd{color:var(--muted)}
+  .turstat{margin:10px 0 4px;border:1px solid var(--line);border-radius:12px;padding:12px;background:var(--card)}
+  .turstat table{width:100%;border-collapse:collapse;font-size:12px}
+  .turstat th,.turstat td{padding:5px 6px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap}
+  .turstat th{color:var(--muted);font-size:11px;text-transform:uppercase}
+  .mchip{display:inline-block;font-size:12px;color:var(--muted);margin-right:8px}
+  @media(max-width:980px){
+    .layout{grid-template-columns:1fr}
+    aside{position:static;max-height:none;order:-1}
+    .hide-s{display:none}
+  }
+  @media(max-width:640px){
+    th,td{padding:6px 5px}
+    .datenav .dtlbl{min-width:118px;font-size:12.5px}
+    .datenav button{padding:6px 9px}
+  }
+</style>
+</head>
+<body>
+<header><div class="wrap">
+  <div class="hrow">
+    <h1>At Yarışı Analizi</h1>
+    <button class="themetog" id="themetog" onclick="toggleTheme()">Tema</button>
+  </div>
+  <div class="sub" id="sub"></div>
+  <div style="display:flex;gap:8px;margin:2px 0 10px;flex-wrap:wrap">
+    <a href="/turler" style="padding:5px 10px;border:1px solid #2a3140;border-radius:8px;font-size:12.5px;color:inherit;text-decoration:none">Koşu türleri</a>
+    <a href="/jokeyler" style="padding:5px 10px;border:1px solid #2a3140;border-radius:8px;font-size:12.5px;color:inherit;text-decoration:none">Jokey başarısı</a>
+  </div>
+  <div class="topbar">
+    <div class="datenav" id="datenav"></div>
+    <div class="citybar" id="citybar"></div>
+  </div>
+</div></header>
+
+<div class="layout">
+  <main id="app"></main>
+  <aside id="side">
+    <div class="section-label" id="jk-title">Jokey sıralaması</div>
+    <div id="sidejockey"></div>
+  </aside>
+</div>
+
+<footer>
+  <a href="/turler">Koşu türleri istatistiği</a> · <a href="/jokeyler">Jokey başarısı</a><br>
+  Veri kaynağı: Türkiye Jokey Kulübü (TJK). Bu rapor yalnızca bilgilendirme amaçlıdır; kazanç garantisi vermez. 18+
+</footer>
+
+<script id="data" type="application/json">__DATA__</script>
+<script>
+let DATA = JSON.parse(document.getElementById('data').textContent);
+let DAYS = [];
+let DONEM = DATA.Donem || new Date().getFullYear();
+let dayIdx = 0;
+let cityIdx = -1;
+
+function initFromData(){
+  DONEM = DATA.Donem || new Date().getFullYear();
+  DAYS = (DATA.Tarihler && DATA.Tarihler.length) ? DATA.Tarihler : [{Tarih:DATA.Tarih, Hava:DATA.Hava, Sehirler:DATA.Sehirler}];
+  dayIdx = Math.max(0, DAYS.findIndex(d => d.Tarih === DATA.Tarih));
+  if (dayIdx < 0) dayIdx = 0;
+  cityIdx = -1;
+}
+
+const esc = s => String(s==null?'':s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const VLABEL = {KUM:'Kumcu', CIM:'Çimci', DENGELI:'Dengeli', YOK:'—'};
+const VCLS = {KUM:'b-kum', CIM:'b-cim', DENGELI:'b-dengeli', YOK:'b-yok'};
+
+function toggleTheme(){
+  const el = document.documentElement;
+  const next = el.dataset.theme === 'dark' ? 'light' : 'dark';
+  el.dataset.theme = next;
+  document.getElementById('themetog').textContent = next === 'dark' ? 'Açık tema' : 'Koyu tema';
+}
+
+function isPast(tarih){
+  const p = tarih.split('/'); if (p.length !== 3) return false;
+  const d = new Date(+p[2], +p[1]-1, +p[0]);
+  const t = new Date(); t.setHours(0,0,0,0);
+  return d < t;
+}
+
+function currentDay(){ return DAYS[dayIdx]; }
+function currentCity(){ return (cityIdx >= 0) ? (currentDay().Sehirler||[])[cityIdx] : null; }
+
+function renderSub(){
+  const d = currentDay() || { Tarih: DATA.Tarih || '', Hava: DATA.Hava };
+  const c = currentCity();
+  const label = c ? c.Ad : 'Tüm koşular (yurt içi + yurt dışı)';
+  document.getElementById('sub').textContent =
+    `Tarih: ${d.Tarih}${gunAdi(d.Tarih)} · ${label}` + (d.Hava ? ` · ${d.Hava}` : '') + ` · Dönem: ${DONEM} · Üretim: ${DATA.Uretim}`
+    + (DATA.Uyari ? ` · ⚠ ${DATA.Uyari}` : '')
+    + ((DATA.Bilgi && !DATA.Uyari) ? ` · ⓘ ${DATA.Bilgi}` : '')
+    + ' · sürüm 16.11-5';
+}
+
+function gunAdi(tr){ const p=String(tr||'').split(/[./]/); if(p.length<3) return ''; const dt=new Date(Number(p[2]),Number(p[1])-1,Number(p[0])); if(isNaN(dt)) return ''; const g=['Pazar','Pazartesi','Salı','Çarşamba','Perşembe','Cuma','Cumartesi']; return ' ('+g[dt.getDay()]+')'; }
+function isoOf(d){ const x=new Date(d.getTime()-d.getTimezoneOffset()*60000); return x.toISOString().slice(0,10); }
+function isoFromTR(s){ const p=(s||'').split('/'); if(p.length===3) return `${p[2]}-${p[1]}-${p[0]}`; return isoOf(new Date()); }
+let currentAbort = null;
+let lastGoodIso = null;
+function isoToTR(iso){ const p=(iso||'').split('-'); return p.length===3 ? (p[2]+'/'+p[1]+'/'+p[0]) : iso; }
+function prevIso(iso){
+  const p=(iso||'').split('-'); if(p.length!==3) return isoOf(new Date());
+  const d=new Date(+p[0], +p[1]-1, +p[2]); d.setDate(d.getDate()-1); return isoOf(d);
+}
+function ensureBanner(){
+  let b=document.getElementById('loadbanner');
+  if(!b){ b=document.createElement('div'); b.id='loadbanner'; b.className='loadbanner'; document.body.appendChild(b); }
+  b.className='loadbanner'; b.style.display='block'; return b;
+}
+function hideBanner(){ const b=document.getElementById('loadbanner'); if(b) b.style.display='none'; }
+function showError(msg, iso){
+  const b=ensureBanner(); b.className='errorbar';
+  let extra='';
+  if (lastGoodIso) { extra=' <button onclick="loadDate(\''+lastGoodIso+'\')">Son veriye dön</button>'; }
+  b.innerHTML=esc(msg)+' <button onclick="loadDate(\''+iso+'\')">Tekrar dene</button>'+extra;
+}
+function loadDate(iso, push, yabanciOverride){
+  if (location.protocol === 'file:') { alert('Tarih değiştirmek için uygulamayı calistir.bat ile (sunucu modunda) açın.'); return; }
+  const qs = new URLSearchParams(location.search);
+  const hizli = qs.get('hizli') !== '0';
+  const yabanci = (typeof yabanciOverride === 'boolean') ? yabanciOverride : (qs.get('yabanci') === '1');
+  const b = ensureBanner();
+  b.innerHTML='Yükleniyor… '+esc(iso)+' <button onclick="loadDate(\''+prevIso(iso)+'\')">‹ Önceki gün</button> <button onclick="loadDate(\''+isoOf(new Date())+'\')">Bugüne dön</button>';
+  if (currentAbort) { try { currentAbort.abort(); } catch(e){} }
+  currentAbort = window.AbortController ? new AbortController() : null;
+  const opts = currentAbort ? { signal: currentAbort.signal } : {};
+  const to = setTimeout(function(){ if (currentAbort) { try { currentAbort.abort(); } catch(e){} } }, 100000);
+  fetch('/api/gun?tarih=' + encodeURIComponent(iso) + '&hizli=' + (hizli?'1':'0') + (yabanci?'&yabanci=1':''), opts)
+    .then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); })
+    .then(function(p){
+      clearTimeout(to);
+      DATA=p; initFromData(); render(); hideBanner();
+      lastGoodIso = p.TarihISO || iso;
+      if (push !== false) { try { history.pushState({tarih:iso}, '', '/?tarih='+encodeURIComponent(iso)+(hizli?'&hizli=1':'')+(yabanci?'&yabanci=1':'')); } catch(e){} }
+    })
+    .catch(function(e){
+      clearTimeout(to);
+      const msg = (e && e.name === 'AbortError') ? 'zaman aşımı' : ((e && e.message) ? e.message : 'hata');
+      const shown = (DATA && DATA.Tarih) ? DATA.Tarih : '';
+      showError(isoToTR(iso) + ' yüklenemedi (' + msg + ').' + (shown ? ' Şu an ' + shown + ' gösteriliyor.' : ''), iso);
+    });
+}
+function navToDate(iso){ loadDate(iso); }
+let OPEN_STATS={};
+function findRace(kodu){ let out=null; (DATA.Sehirler||[]).forEach(c=>{ (c.Kosular||[]).forEach(r=>{ if(String(r.KosuKodu)===String(kodu)) out=r; }); }); return out; }
+async function istatistikHesapla(kodu){
+  const race=findRace(kodu); if(!race) return;
+  const tip=race.Tip||'';
+  for(let deneme=0; deneme<20; deneme++){
+    ensureBanner().innerHTML=(deneme?'İstatistik hazırlanıyor… ('+esc(tip)+') '+Math.round(deneme*7)+' sn':'İstatistik hesaplanıyor… ('+esc(tip)+')');
+    try{
+      const r=await fetch('/api/istatistik?tip='+encodeURIComponent(tip)+'&grup=&n=50');
+      if(!r.ok) throw new Error('HTTP '+r.status);
+      const s=await r.json();
+      if(s.Hazirlaniyor){ await new Promise(function(z){ setTimeout(z,7000); }); continue; }
+      if(s.Hata) throw new Error(s.Hata);
+      race.Istatistik=s; OPEN_STATS[String(kodu)]=true; hideBanner(); render(); return;
+    }catch(e){ showError('İstatistik alınamadı ('+((e&&e.message)||'hata')+').', DATA.TarihISO); return; }
+  }
+  showError('İstatistik hazırlanıyor; birkaç dakika sonra tekrar deneyin.', DATA.TarihISO);
+}
+async function analizYukle(kodu){
+  const iso = DATA.TarihISO || isoFromTR(DATA.Tarih);
+  let race=null;
+  (DATA.Sehirler||[]).forEach(c=>{ (c.Kosular||[]).forEach(r=>{ if(String(r.KosuKodu)===String(kodu)){ race=r; } }); });
+  if(!race) return;
+  ensureBanner().innerHTML='Ayrıntılı analiz yükleniyor… ('+esc(race.KosuNo)+'. koşu — jokey/geçmiş/pist/istatistik)';
+  try{
+    const r = await fetch('/api/analiz?tarih='+encodeURIComponent(DATA.Tarih)+'&kosu='+encodeURIComponent(kodu)+'&sehir='+encodeURIComponent(race.SehirId)+'&ad='+encodeURIComponent(race.Sehir||''));
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    const res = await r.json();
+    Object.assign(race, res);
+    hideBanner();
+    render();
+  }catch(e){ showError('Ayrıntılı analiz alınamadı ('+((e&&e.message)||'hata')+').', iso); }
+}
+window.addEventListener('popstate', function(ev){
+  const iso = (ev.state && ev.state.tarih) ? ev.state.tarih : isoOf(new Date());
+  loadDate(iso, false);
+});
+function renderDateNav(){
+  const el = document.getElementById('datenav');
+  if(!el) return;
+  el.innerHTML = '';
+  const iso = DATA.TarihISO || isoFromTR(DATA.Tarih);
+  const p = iso.split('-').map(Number);
+  const mk=(txt,fn,cls)=>{ const b=document.createElement('button'); b.textContent=txt; if(cls) b.className=cls; b.onclick=fn; return b; };
+  if(!p[0] || !p[1] || !p[2]){ el.appendChild(mk(DATA.Tarih||'—',()=>{})); return; }
+  el.appendChild(mk('‹',()=>navToDate(isoOf(new Date(p[0],p[1]-1,p[2]-1)))));
+  const lbl=document.createElement('button'); lbl.className='dtlbl';
+  lbl.textContent=`${DATA.Tarih}${gunAdi(DATA.Tarih)}`; lbl.title='Tarih seç'; el.appendChild(lbl);
+  el.appendChild(mk('›',()=>navToDate(isoOf(new Date(p[0],p[1]-1,p[2]+1)))));
+  if(iso!==isoOf(new Date())) el.appendChild(mk('Bugün',()=>navToDate(isoOf(new Date())),'mini'));
+  const inp=document.createElement('input'); inp.type='date'; inp.className='dthide'; inp.value=iso;
+  inp.onchange=()=>navToDate(inp.value); el.appendChild(inp);
+  lbl.onclick=()=>{ try{ if(inp.showPicker) inp.showPicker(); else inp.click(); }catch(e){ inp.click(); } };
+}
+
+function renderCities(){
+  const el = document.getElementById('citybar'); if(!el) return; el.innerHTML='';
+  const all=document.createElement('button');
+  all.className='citybtn'+(cityIdx<0?' active':'');
+  all.textContent='Tümü';
+  all.onclick=()=>{ cityIdx=-1; render(); };
+  el.appendChild(all);
+  (currentDay().Sehirler||[]).forEach((c,i)=>{
+    const b=document.createElement('button');
+    b.className='citybtn'+(i===cityIdx?' active':'');
+    b.textContent=c.Ad+(c.Yabanci?' (YD)':'');
+    b.onclick=()=>{ cityIdx=i; render(); };
+    el.appendChild(b);
+  });
+}
+
+function renderScope(){
+  const el=document.getElementById('citybar'); if(!el) return;
+  const y = new URLSearchParams(location.search).get('yabanci')==='1';
+  const iso = DATA.TarihISO || isoFromTR(DATA.Tarih);
+  const b=document.createElement('button');
+  b.className='citybtn yd'+(y?' active':'');
+  b.textContent=y?'Yurt dışı kapat':'+ Yurt dışı';
+  b.onclick=()=>loadDate(iso,true,!y);
+  el.appendChild(b);
+}
+
+function renderRaceChips(){
+  const el=document.getElementById('racechips'); if(!el) return; el.innerHTML='';
+  const jump=(idx,txt)=>{ const b=document.createElement('button'); b.className='racechip'; b.textContent=txt; b.onclick=()=>{ const t=document.getElementById('r'+idx); if(t) t.scrollIntoView({behavior:'smooth',block:'start'}); }; el.appendChild(b); };
+  if(cityIdx<0){
+    let gi=0;
+    (currentDay().Sehirler||[]).forEach(c=>{
+      if(!c.Kosular||!c.Kosular.length) return;
+      c.Kosular.forEach(r=>{ jump(gi++, `${c.Ad} · ${r.KosuNo}. Koşu ${r.Saat||''}`); });
+    });
+    return;
+  }
+  const c=currentCity(); if(!c) return;
+  (c.Kosular||[]).forEach((r,i)=>{ jump(i, `${r.KosuNo}. Koşu ${r.Saat||''} · ${r.Tip||''}`); });
+}
+
+const JK_CACHE={};
+let JK_ALL=false;
+let SEC_JOKEY=null;
+let JOKEY_ADLARI=[];
+
+// Jokey adi eslestirme: kosuda "M.S.ÇELİK", panelde "MEHMET SALİH ÇELİK" yaziyor.
+function jUp(s){ return String(s||'').toUpperCase().replace(/İ/g,'I').replace(/Ş/g,'S').replace(/Ğ/g,'G').replace(/Ü/g,'U').replace(/Ö/g,'O').replace(/Ç/g,'C'); }
+function jPar(s){ return jUp(s).replace(/\(.*?\)/g,'').replace(/\./g,' ').split(/\s+/).filter(Boolean); }
+function jKey(s){
+  const p=jPar(s); if(!p.length) return '';
+  if(p.length===1) return p[0];
+  return p.slice(0,-1).map(x=>x.charAt(0)).join('')+p[p.length-1];
+}
+function jEsles(full, short){
+  const a=jPar(full), b=jPar(short);
+  if(!a.length||!b.length) return false;
+  if(a[a.length-1]!==b[b.length-1]) return false;      // soyad ayni olmali
+  const ag=a.slice(0,-1), bg=b.slice(0,-1);
+  if(bg.length>ag.length) return false;
+  for(let i=0;i<bg.length;i++){ if(!ag[i]||ag[i].indexOf(bg[i])!==0) return false; }
+  return true;
+}
+// Kisa adi (kosu listesindeki) paneldeki tam ada cevirir
+function tamAd(short){
+  const s=String(short||''), k=jKey(s);
+  const t=JOKEY_ADLARI.filter(f=>jKey(f)===k);
+  if(t.length===1) return t[0];
+  const p=JOKEY_ADLARI.filter(f=>jEsles(f,s));
+  return p.length===1 ? p[0] : s;
+}
+function kosudaVar(race, name){
+  const n=String(name||'');
+  return (race.Atlar||[]).some(h=>h.Jokey && (String(h.Jokey)===n || tamAd(h.Jokey)===n));
+}
+// At satirinda jokey adi vurgulanacak mi (secili jokey veya arama kutusu)
+function jokeyVurgu(h){
+  if(!h || !h.Jokey) return false;
+  const ad=String(h.Jokey), tam=String(tamAd(ad));
+  if(SEC_JOKEY && (ad===SEC_JOKEY || tam===SEC_JOKEY)) return true;
+  const nq=jUp(JF_ARA).replace(/[^A-Z0-9]/g,'');
+  if(nq){
+    const s=jUp(ad).replace(/[^A-Z0-9]/g,'')+' '+jUp(tam).replace(/[^A-Z0-9]/g,'');
+    return s.indexOf(nq)>=0;
+  }
+  return false;
+}
+
+// Secili jokeyin bugun kostugu kosular
+function jokeyKosulari(name){
+  const out=[];
+  if(!name) return out;
+  const n=String(name);
+  (currentDay().Sehirler||[]).forEach(c=>{
+    (c.Kosular||[]).forEach(r=>{
+      (r.Atlar||[]).forEach(h=>{
+        if(h.Jokey && (String(h.Jokey)===n || tamAd(h.Jokey)===n)){
+          out.push({ no:r.KosuNo, at:h.Sira, sehir:c.Ad, id:r.KosuKodu });
+        }
+      });
+    });
+  });
+  return out;
+}
+function jokeyBar(){
+  if(!SEC_JOKEY) return '';
+  const ks=jokeyKosulari(SEC_JOKEY);
+  const yer=ks.map(x=>(x.sehir?esc(x.sehir)+' ':'')+x.no+'. koşu'+(x.at?(' ('+x.at+' no\'lu at)'):'')).join(', ');
+  return `<div class="jokeybar"><b>${esc(SEC_JOKEY)}</b> · bugün ${ks.length} binicilik${yer?' — '+esc(yer):''} · <a href="#" onclick="secJokey(null);return false">temizle ✕</a></div>`;
+}
+function secJokey(name){
+  SEC_JOKEY = (!name || SEC_JOKEY===name) ? null : name;
+  render();
+  if(SEC_JOKEY){
+    setTimeout(function(){
+      const h=document.querySelector('.jokey-hit');
+      const m=h ? h.closest('section.race') : null;
+      if(m) m.scrollIntoView({behavior:'smooth',block:'center'});
+    }, 80);
+  }
+}
+function renderSideJockey(){
+  const el=document.getElementById('sidejockey');
+  const c=currentCity();
+  const cities = c ? [c] : (currentDay().Sehirler||[]).filter(x=>x.Kosular&&x.Kosular.length);
+  if(!cities.length){ document.getElementById('jk-title').textContent='Jokey sıralaması'; el.innerHTML='<div class="small">Şehir seçin (hipodrom bazlı sıralama için).</div>'; return; }
+  document.getElementById('jk-title').textContent = c ? `Jokey sıralaması — ${c.Ad}`
+    : `Jokey sıralaması — ${cities.map(x=>x.Ad).join(' · ')}`;
+  el.innerHTML='';
+  cities.forEach(city=>{
+    const key=String(city.SehirId)+'|'+DONEM;
+    const box=document.createElement('div');
+    box.style.marginBottom='10px';
+    el.appendChild(box);
+    const paint=(arr)=>{
+      if(!arr || !arr.length){
+        // TJK yurt disi hipodromlar icin jokey istatistigi yayinlamiyor: gunun kadrosunu goster
+        const seen={}, jl=[];
+        (city.Kosular||[]).forEach(r=>(r.Atlar||[]).forEach(h=>{ if(h.Jokey && !seen[h.Jokey]){ seen[h.Jokey]=1; jl.push(h.Jokey); } }));
+        if(jl.length){
+          let h=`<div class="small" style="margin:4px 0 2px;color:var(--ink)"><b>${esc(city.Ad)}</b></div>`;
+          h+=`<div class="small">TJK bu hipodrom için jokey istatistiği yayınlamıyor. Günün kadrosu:</div>`;
+          jl.sort().forEach(j=>{ h+=`<div class="rank${SEC_JOKEY===j?' selj':''}" data-j="${esc(j)}"><span>${esc(j)}</span><span class="small">${jokeyKosulari(j).length} koşu</span></div>`; });
+          jl.forEach(a=>{ if(JOKEY_ADLARI.indexOf(a)<0) JOKEY_ADLARI.push(a); });
+          box.innerHTML=h;
+          box.querySelectorAll('[data-j]').forEach(x=>{ x.onclick=function(){ secJokey(x.getAttribute('data-j')); }; });
+        } else {
+          box.innerHTML=`<div class="small">${esc(city.Ad)}: jokey tablosu bulunamadı.</div>`;
+        }
+        return;
+      }
+      const lim=JK_ALL?arr.length:(c?Math.min(20,arr.length):Math.min(10,arr.length));
+      arr.forEach(x=>{ const a=String(x.Jokey); if(a && JOKEY_ADLARI.indexOf(a)<0) JOKEY_ADLARI.push(a); });
+      let h=`<div class="small" style="margin:4px 0 2px;color:var(--ink)"><b>${esc(city.Ad)}</b></div>`;
+      arr.slice(0,lim).forEach((j,i)=>{
+        const jn=String(j.Jokey);
+        const ks=jokeyKosulari(jn).length;
+        h+=`<div class="rank${SEC_JOKEY===jn?' selj':''}" data-j="${esc(jn)}"><span><b>${i+1}.</b> ${esc(jn)}${ks?` <span class="small">${ks} koşu</span>`:''}</span><span><b>${j.D1==null?'—':j.D1}</b> <span class="small">1. · ${j.Kosu==null?'—':j.Kosu} koşu${j.P1!=null?' · %'+j.P1:''}</span></span></div>`;
+      });
+      if(c){
+        h+=`<div class="small">birincilik sayısına göre · `;
+        h+= JK_ALL ? `<a href="#" onclick="JK_ALL=false;renderSideJockey();return false">ilk 20</a>`
+                   : `ilk ${lim} / ${arr.length} · <a href="#" onclick="JK_ALL=true;renderSideJockey();return false">tümünü göster</a>`;
+        h+='</div>';
+      }
+      box.innerHTML=h;
+      box.querySelectorAll('[data-j]').forEach(x=>{ x.onclick=function(){ secJokey(x.getAttribute('data-j')); }; });
+    };
+    if(JK_CACHE[key]){ paint(JK_CACHE[key]); return; }
+    box.innerHTML=`<div class="small">${esc(city.Ad)} jokey tablosu yükleniyor…</div>`;
+    fetch('/api/jokeyler?sehir='+encodeURIComponent(city.SehirId)+'&yil='+encodeURIComponent(DONEM))
+      .then(r=>r.json())
+      .then(d=>{ JK_CACHE[key]=d.Jokeyler||[]; paint(JK_CACHE[key]); })
+      .catch(()=>{ box.innerHTML=`<div class="small">${esc(city.Ad)}: jokey tablosu alınamadı. <a href="#" onclick="renderSideJockey();return false">Tekrar dene</a></div>`; });
+  });
+}
+
+function surfaceBadge(race, atId){
+  const v = race.Yuzey && race.Yuzey[atId];
+  const k = v ? v.Karar : 'YOK';
+  return `<span class="badge ${VCLS[k]||'b-yok'}">${VLABEL[k]||'—'}</span>`;
+}
+function jockeyWinsOf(race, jid){
+  const a = (race.JokeySira||[]).find(x=>String(x.JokeyId)===String(jid));
+  return a ? a.Birincilik : null;
+}
+
+function horseTable(race){
+  let rows='';
+  const hasSonuc = (race.Atlar||[]).some(h=>h.Sonuc!=null);
+  (race.Atlar||[]).forEach(h=>{
+    const agf = h.AgfRank!=null ? `#${h.AgfRank}` : (h.AgfPct!=null? `%${h.AgfPct}` : '—');
+    const w = jockeyWinsOf(race, h.JokeyId);
+    const jic = `${esc(h.Jokey)}${w!=null?` <span class="small">(${w})</span>`:''}`;
+    const jtxt = jokeyVurgu(h) ? `<span class="jokey-hit">${jic}</span>` : jic;
+    const orijin = [h.Baba,h.Anne].filter(Boolean).join(' – ');
+    rows += `<tr>
+      <td class="num">${esc(h.Sira)}</td>
+      <td class="name">${esc(h.At)}</td>
+      <td>${jtxt}</td>
+      <td class="num hide-s">${esc(h.Yas)}</td>
+      <td class="num">${esc(h.KiloText)}</td>
+      <td class="num">${h.HP!=null?esc(h.HP):'—'}</td>
+      <td class="num hide-s">${esc(h.St)}</td>
+      <td class="num">${agf}</td>
+      ${hasSonuc?`<td class="num">${h.Sonuc!=null?esc(h.Sonuc):'—'}</td>`:''}
+      <td class="hide-s">${esc(orijin)}</td>
+      <td class="hide-s">${esc(h.Form)}</td>
+      <td class="hide-s">${esc(h.Derece)}</td>
+      <td>${surfaceBadge(race,h.AtId)}</td>
+    </tr>`;
+  });
+  return `<div style="overflow:auto"><table>
+    <thead><tr>
+      <th class="num">No</th><th>At</th><th>Jokey (dönem)</th><th class="num hide-s">Yaş</th>
+      <th class="num">Kilo</th><th class="num">HP</th><th class="num hide-s">St</th><th class="num">AGF</th>
+      ${hasSonuc?'<th class="num">Sonuç</th>':''}
+      <th class="hide-s">Orijin</th><th class="hide-s">Form</th><th class="hide-s">Derece</th><th>Pist</th>
+    </tr></thead><tbody>${rows}</tbody></table></div>`;
+}
+
+function panelJockey(race){
+  const arr=race.JokeySira||[];
+  if(!arr.length) return `<div class="panel"><h4>Jokey sıralaması</h4><div class="small">Veri yok</div></div>`;
+  let rows='';
+  arr.forEach((j,i)=>{ rows+=`<div class="rank"><span><b>${i+1}.</b> ${esc(j.Jokey)} <span class="small">(${esc(j.At)})</span></span><span><b>${j.Birincilik==null?'—':j.Birincilik}</b> <span class="small">bir.</span></span></div>`; });
+  return `<div class="panel"><h4>Jokey sıralaması — ${DONEM}, bu hipodrom</h4>${rows}</div>`;
+}
+function panelH2H(race){
+  const h=race.IkiliGecme;
+  if(!h||!h.Liste||!h.Liste.length) return `<div class="panel"><h4>Rakiplerini geçme</h4><div class="small">Veri yok</div></div>`;
+  let rows='';
+  h.Liste.forEach((x,i)=>{ rows+=`<div class="rank"><span><b>${i+1}.</b> ${esc(x.At)}</span><span><span class="ok">+${x.Gecme}</span> / <span class="no">-${x.Gecilme}</span> <span class="small">(${x.Ortak} ortak)</span></span></div>`; });
+  const best=h.EnCokGecen?`<div class="note star">★ En çok geçen: <b>${esc(h.EnCokGecen)}</b></div>`:`<div class="note">Ortak koşu az.</div>`;
+  return `<div class="panel"><h4>Rakiplerini geçme (ikili geçmiş)</h4>${rows}${best}</div>`;
+}
+function panelOrigin(race){
+  let rows='';
+  (race.Atlar||[]).forEach(h=>{
+    const s=race.Yuzey&&race.Yuzey[h.AtId];
+    const v=s?s.Karar:'YOK';
+    const orijin=[h.Baba,h.Anne].filter(Boolean).join(' – ')||'—';
+    const kb = h.KisrakBaba?` <span class="small">/ KB: ${esc(h.KisrakBaba)}</span>`:'';
+    let cnt='';
+    if(s){ cnt = `Kum: ${s.KumIlkUc}/${s.KumKosu} tabela · Çim: ${s.CimIlkUc}/${s.CimKosu} tabela`; }
+    rows+=`<div class="rank"><span>${esc(h.At)}<div class="small">${esc(orijin)}${kb}</div><div class="small">${esc(cnt)}</div></span><span class="badge ${VCLS[v]||'b-yok'}">${VLABEL[v]||'—'}</span></div>`;
+  });
+  if(!rows) return '';
+  return `<div class="panel"><h4>Kum/Çim tabela & orijin</h4>${rows}
+    <div class="note">Tabela = ilk 3 derece sayısı (atın geçmiş koşuları). "Kumcu/Çimci" yorumu bu sayılara göre.</div></div>`;
+}
+function panelForm(race){
+  const arr=(race.Form||[]).filter(x=>x.Puan!=null).sort((a,b)=>b.Puan-a.Puan);
+  if(!arr.length) return `<div class="panel"><h4>Form (son 6 yarış)</h4><div class="small">Veri yok</div></div>`;
+  let rows=''; arr.slice(0,6).forEach(x=>{ rows+=`<div class="rank"><span>${esc(x.At)}</span><span><b>${x.Puan}</b> <span class="small">puan · ort ${x.Ort}</span></span></div>`; });
+  return `<div class="panel"><h4>Form (son 6 yarış)</h4>${rows}</div>`;
+}
+function panelConsensus(race){
+  const arr=(race.Konsensus||[]).slice(0,5); if(!arr.length) return '';
+  let rows=''; arr.forEach((x,i)=>{ const comp=Object.entries(x.Bilesenler||{}).map(([k,v])=>`${k}:${Math.round(v)}`).join(' · '); rows+=`<div class="rank"><span><b>${i+1}.</b> ${esc(x.At)}</span><span><b>${x.Puan}</b> <span class="small">${esc(comp)}</span></span></div>`; });
+  return `<div class="panel"><h4>Öne çıkanlar (konsensüs)</h4>${rows}<div class="note">HP + Form + Pist + Jokey + İkili geçme. Yatırım tavsiyesi değildir.</div></div>`;
+}
+function panelCombo(race){
+  const arr=race.JokeyAt||[]; if(!arr.length) return '';
+  let rows=''; arr.forEach(x=>{ rows+=`<div class="rank"><span>${esc(x.At)} <span class="small">/ ${esc(x.Jokey)}</span></span><span>${x.Kosu} koşu · <b>${x.Birinci}</b> birinci</span></div>`; });
+  return `<div class="panel"><h4>Bu jokey bu atı daha önce bindirdi mi?</h4>${rows}</div>`;
+}
+function statsPanel(race){
+  const s=race.Istatistik;
+  if(!s) return `<div class="small mut" style="margin-top:10px">İstatistik henüz yüklenmedi. <button class="btn-stats" onclick="event.stopPropagation(); istatistikHesapla('${esc(race.KosuKodu)}')">İstatistiği hesapla (son 50 koşu)</button></div>`;
+  if(s.Hata) return `<div class="small mut" style="margin-top:10px">${esc(s.Hata)}</div>`;
+  let bars=''; const bands=s.HpBantlari||[]; const mx=Math.max(1,...bands.map(b=>b.Oran||0));
+  bands.forEach(b=>{ const w=Math.round(100*(b.Oran||0)/mx); bars+=`<div class="bar"><span>${esc(b.Bant)}</span><span class="track"><span class="fill" style="width:${w}%"></span></span><span class="num">%${b.Oran}</span></div>`; });
+  const sk=s.Siklet;
+  return `<div class="stats">
+    <div class="small" style="margin-bottom:8px">${esc(s.Tip)} · ${esc(s.Grup)} · son ${s.Yil} yıl · ${s.KosuSayisi} koşu</div>
+    <div class="kpi">
+      <div>Favori kazanma <b>${s.FavoriKazanma!=null?'%'+s.FavoriKazanma:'—'}</b></div>
+      <div>Sürpriz <b>${s.SurprizOran!=null?'%'+s.SurprizOran:'—'}</b></div>
+      <div>En yüksek HP kazandı <b>${s.EnYuksekHpKazanma!=null?'%'+s.EnYuksekHpKazanma:'—'}</b></div>
+      <div>Ort. sıklet <b>${sk?sk.Ortalama+' kg':'—'}</b></div>
+    </div>
+    <div class="small" style="margin:10px 0 6px">Kazananların handikap puanı dağılımı (yüksekten düşüğe)</div>
+    <div class="bars">${bars || '<span class="mut">HP verisi yok</span>'}</div>
+  </div>`;
+}
+
+function panelProgram(race){
+  const py = race.GenisYorum || race.ProgramYorum; if(!py) return '';
+  return `<div class="verdict v-program"><b>Oyun mantığı (program + jokey + pist + yaş)</b><div class="small">${esc(py.Metin||'')}</div></div>`;
+}
+function panelVerdict(race){
+  const y=race.Yorum; if(!y) return '';
+  const cls={yuksek:'v-yuksek',dusuk:'v-dusuk',orta:'v-orta',yok:'v-yok'}[y.Seviye]||'v-orta';
+  return `<div class="verdict ${cls}"><b>${esc(y.Baslik||'Değerlendirme')}</b><div class="small">${esc(y.Metin||'')}</div></div>`;
+}
+
+const TUR_CACHE={}, TUR_STATE={};
+function turOzet(s, sehir, sadi, n){
+  const yer = (sehir && sehir!=='-1') ? (sadi||'Hipodrom') : 'Tüm Türkiye';
+  const ks=(s.Kosular||[]);
+  const rows=ks.slice(0,10).map(r=>`<tr><td>${esc(r.Tarih)}</td><td>${esc(r.Sehir)}</td><td>${esc(r.Pist)}</td><td>${esc(r.Irk)}</td><td>${esc(r.At)}</td><td>${r.Kilo!=null?r.Kilo:'—'}</td><td>${r.HP!=null?r.HP:'—'}</td><td>${r.HpSira!=null?r.HpSira:'—'}</td><td>${r.Agf!=null?'%'+r.Agf:'—'}</td><td>${r.Favori?'✔':''}</td></tr>`).join('');
+  const bands=(s.HpBantlari||[]).map(b=>`<span class="mchip">${esc(b.Bant)}: %${b.Oran}</span>`).join('');
+  const pv=v=>(v==null?'—':'%'+v);
+  return `<div class="small mut">${esc(s.Tip||'')} · ${esc(yer)} · son ${s.KosuSayisi} koşu · tam kadro %${s.KadroOran||0}</div>
+  <div class="kpi" style="margin:8px 0">
+    <div>Favori <b>${pv(s.FavoriKazanma)}</b></div>
+    <div>Sürpriz <b>${pv(s.SurprizOran)}</b></div>
+    <div>En yüksek HP <b>${pv(s.EnYuksekHpKazanma)}</b></div>
+    <div>En düşük HP <b>${pv(s.EnDusukHpKazanma)}</b></div>
+    <div>Ort. kilo <b>${s.Siklet?(s.Siklet.Ortalama+' kg'):'—'}</b></div>
+    <div>Ort. yaş <b>${s.OrtYas!=null?s.OrtYas:'—'}</b></div>
+  </div>
+  <div class="small" style="margin:6px 0">Kazananların HP dağılımı: ${bands||'—'}</div>
+  <div style="overflow:auto"><table><thead><tr><th>Tarih</th><th>Şehir</th><th>Pist</th><th>Irk</th><th>Kazanan</th><th>Kilo</th><th>HP</th><th>HP sıra</th><th>AGF</th><th>Fav</th></tr></thead><tbody>${rows}</tbody></table></div>
+  <div class="small" style="margin-top:6px">Son 10 koşu · <a href="/istatistik?tip=${encodeURIComponent(s.Tip||'')}&grup=&n=${n||50}&sehir=${encodeURIComponent(sehir||'-1')}&sadi=${encodeURIComponent(sadi||'')}" target="_blank" rel="noopener">tam sayfa ↗</a></div>`;
+}
+async function turIstatistik(id, tip, sehirId, sadi, opt){
+  const box=document.getElementById(id+'t'); if(!box) return;
+  const st = TUR_STATE[id] || (TUR_STATE[id]={sehir:(sehirId?String(sehirId):'-1'), n:50});
+  if(opt){ if(opt.sehir!=null) st.sehir=String(opt.sehir); if(opt.n) st.n=Number(opt.n); }
+  if(!opt && box.style.display!=='none'){ box.style.display='none'; return; }
+  box.style.display='block';
+  try{ box.scrollIntoView({behavior:'smooth', block:'start'}); }catch(e){ box.scrollIntoView(); }
+  const tq=(tip||'').replace(/'/g,'').replace(/"/g,'');
+  const sq=(sadi||'').replace(/'/g,'').replace(/"/g,'');
+  const call=(o)=>`turIstatistik('${id}','${tq}','${sehirId||''}','${sq}',${o})`;
+  let bar='<div class="small" style="margin-bottom:8px;display:flex;flex-wrap:wrap;gap:6px;align-items:center">';
+  bar+=`<a class="sizebtn${st.sehir==='-1'?' sel':''}" href="#" onclick="${call("{sehir:'-1'}")};return false">Tüm Türkiye</a>`;
+  if(sadi){ bar+=`<a class="sizebtn${st.sehir!=='-1'?' sel':''}" href="#" onclick="${call("{sehir:'"+String(sehirId||'')+"'}")};return false">${esc(sadi)}</a>`; }
+  bar+='<span style="width:8px"></span>';
+  [50,100,200].forEach(k=>{ bar+=`<a class="sizebtn${st.n===k?' sel':''}" href="#" onclick="${call('{n:'+k+'}')};return false">son ${k}</a>`; });
+  bar+='</div>';
+  box.innerHTML = bar + '<div id="'+id+'tb" class="small mut">İstatistik yükleniyor… ('+esc(tip||'')+')</div>';
+  const body=document.getElementById(id+'tb');
+  const key=(tip||'')+'|'+st.sehir+'|'+st.n;
+  if(TUR_CACHE[key]){ body.innerHTML=TUR_CACHE[key]; return; }
+  try{
+    const r=await fetch('/api/istatistik?tip='+encodeURIComponent(tip||'')+'&grup=&n='+st.n+'&sehir='+encodeURIComponent(st.sehir));
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    const s=await r.json();
+    if(s.Hata) throw new Error(s.Hata);
+    TUR_CACHE[key]=turOzet(s, st.sehir, sadi, st.n); body.innerHTML=TUR_CACHE[key];
+  }catch(e){
+    body.innerHTML='<div class="small mut">İstatistik alınamadı ('+esc((e&&e.message)||'hata')+'). <a href="#" onclick="'+call('{}')+';return false">tekrar dene</a></div>';
+  }
+}
+function raceCard(race, idx){
+  const id='r'+idx;
+  const pistCls=race.Pist==='Çim'?'cim':(race.Pist==='Kum'?'kum':'');
+  const done = isPast(currentDay().Tarih);
+  const ilk4 = done ? (race.Atlar||[])
+      .filter(h=>{ const v=(h.Sira!=null?h.Sira:h.Sonuc); return v!=null && /^\d+$/.test(String(v).trim()); })
+      .sort((a,b)=>parseInt(a.Sira!=null?a.Sira:a.Sonuc,10)-parseInt(b.Sira!=null?b.Sira:b.Sonuc,10))
+      .slice(0,4) : [];
+  const hasAnalysis = (race.JokeySira && race.JokeySira.length) || (race.IkiliGecme && race.IkiliGecme.Liste && race.IkiliGecme.Liste.length) || (race.Yuzey && Object.keys(race.Yuzey).length);
+  const raceCls = 'race';
+  const jkAra = (race.Atlar||[]).map(h=>{
+    if(!h.Jokey) return '';
+    const tam=String(tamAd(h.Jokey));
+    return jUp(h.Jokey).replace(/[^A-Z0-9]/g,'')+' '+jUp(tam).replace(/[^A-Z0-9]/g,'')+' '+jUp(tam);
+  }).join(' ');
+  return `<section class="${raceCls}" data-jk="${esc(jkAra)}" id="${id}">
+    <div class="race-h" onclick="toggleRace('${id}')">
+      <span class="race-no">${esc(race.KosuNo)}. Koşu ${esc(race.Saat)}</span>
+      <span class="chip">${esc(race.Sehir||'')}</span>
+      <a class="chip link" href="/istatistik?tip=${encodeURIComponent(race.Tip||'')}&grup=&n=50" onclick="event.stopPropagation(); if(window.turIstatistik){ try{ event.preventDefault(); turIstatistik('${id}','${esc(race.Tip||'')}','${race.SehirId||''}','${esc(race.Sehir||'')}'); }catch(e){ window.location.href=this.getAttribute('href'); } }" title="Tıklayınca bu koşu türünün son 50 koşusu burada açılır">${esc(race.Tip)||'—'} ▾</a>
+      <span class="chip">${esc(race.Grup)||''}</span>
+      <span class="chip">${race.Mesafe?race.Mesafe+' m':''}</span>
+      ${race.Pist?`<span class="chip pist ${pistCls}">${esc(race.Pist)}</span>`:''}
+      ${race.Yorum&&race.Yorum.Seviye&&race.Yorum.Seviye!=='yok'?`<span class="chip">Sürpriz: ${race.Yorum.Seviye==='yuksek'?'Yüksek':(race.Yorum.Seviye==='dusuk'?'Düşük':'Orta')}</span>`:''}
+      ${done?'<span class="chip done">bitti</span>':''}
+      ${ilk4.length?`<span class="chip top4">${ilk4.map((h,i)=>`${i+1}. ${esc(h.At)}`).join(' · ')}</span>`:''}
+      <span class="spacer"></span><span class="toggle">aç/kapat ▾</span>
+    </div>
+    <div class="race-b" id="${id}b">
+      <div id="${id}t" class="turstat" style="display:none"></div>
+      ${panelProgram(race)}
+      ${panelVerdict(race)}
+      ${horseTable(race)}
+      ${hasAnalysis
+        ? `<div class="panels">
+        ${panelJockey(race)}
+        ${panelH2H(race)}
+        ${panelOrigin(race)}
+        ${panelConsensus(race)}
+        ${panelForm(race)}
+        ${panelCombo(race)}
+      </div>`
+        : ''}
+      <button class="btn-stats" onclick="event.stopPropagation(); analizYukle('${esc(race.KosuKodu)}')">${hasAnalysis?'Ayrıntılı analizi yenile':'Ayrıntılı analizi yükle (jokey · kum/çim · ikili geçme · istatistik)'}</button>
+      <button class="btn-stats" onclick="event.stopPropagation(); var k='${esc(race.KosuKodu)}'; var e=document.getElementById('${id}s'); var sh=(e.style.display==='none'); e.style.display=sh?'block':'none'; OPEN_STATS[k]=sh;">İstatistik ▾</button>
+      <div id="${id}s" style="display:${OPEN_STATS[String(race.KosuKodu)]?'block':'none'}">${statsPanel(race)}</div>
+    </div>
+  </section>`;
+}
+function toggleRace(id){
+  const e=document.getElementById(id+'b');
+  e.style.display = e.style.display==='none' ? 'block' : 'none';
+}
+
+function render(){
+  renderSub(); renderDateNav(); renderCities(); renderScope(); renderRaceChips(); renderSideJockey();
+  const app=document.getElementById('app');
+  const jb=jokeyBar();
+  const jf=`<div class="jokeyfilter"><input id="jfAra" type="search" placeholder="Jokey yaz → koşular süzülür ve yeşil işaretlenir (M.S.ÇELİK / Mehmet Salih…)" value="${esc(JF_ARA)}" autocomplete="off"><span class="small" id="jfSayi"></span></div>`;
+  if(cityIdx<0){
+    let html=jb+jf; let gi=0;
+    (currentDay().Sehirler||[]).forEach(c=>{
+      if(!c.Kosular||!c.Kosular.length) return;
+      html += `<h2 class="cityhead">${esc(c.Ad)}${c.Yabanci?' <span class="small">(yurt dışı)</span>':''}</h2>`;
+      html += c.Kosular.map(r=>raceCard(r, gi++)).join('');
+    });
+    app.innerHTML = html || '<div class="small mut">Bu tarihte koşu bulunamadı.</div>';
+    baglaJf();
+    return;
+  }
+  const c=currentCity();
+  if(!c){ app.innerHTML='<div class="small mut">Bu tarihte koşu bulunamadı.</div>'; return; }
+  app.innerHTML=jb+jf+((c.Kosular||[]).map((r,i)=>raceCard(r,i)).join('') || '<div class="small mut">Bu şehirde koşu yok.</div>');
+  baglaJf();
+}
+
+let JF_ARA='';
+function jfUygula(){
+  const n=jUp(JF_ARA).replace(/[^A-Z0-9]/g,'');
+  let gor=0, tot=0;
+  document.querySelectorAll('section.race').forEach(function(s){
+    tot++;
+    const ok = !n || (s.getAttribute('data-jk')||'').indexOf(n)>=0;
+    s.style.display = ok ? '' : 'none';
+    if(ok) gor++;
+  });
+  const say=document.getElementById('jfSayi');
+  if(say) say.textContent = n ? (gor+' koşu'+(gor?'':' — eşleşme yok, adı farklı yazılmış olabilir')) : (tot+' koşu');
+}
+function baglaJf(){
+  const inp=document.getElementById('jfAra');
+  if(!inp) return;
+  inp.oninput=function(){ JF_ARA=inp.value; jfUygula(); };
+  jfUygula();
+}
+
+if (DATA.__api__) {
+  const qs = new URLSearchParams(location.search);
+  const iso = qs.get('tarih') || isoFromTR(DATA.Tarih);
+  document.getElementById('app').innerHTML = '<div class="small mut" style="padding:24px">Yükleniyor… TJK verisi çekiliyor (birkaç dakika sürebilir).</div>';
+  renderSub(); renderDateNav();
+  loadDate(iso);
+} else {
+  initFromData();
+  render();
+}
+if ('serviceWorker' in navigator && location.protocol !== 'file:') { navigator.serviceWorker.register('/sw.js').catch(function(){}); }
+</script>
+</body>
+</html>
