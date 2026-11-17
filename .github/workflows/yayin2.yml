@@ -41,9 +41,12 @@ jobs:
           Copy-Item -Path (Join-Path $PWD "public\*") -Destination $tmp -Recurse -Force
           Set-Location $tmp
           git init -q
+          git config user.name "atyarisi-bot"
+          git config user.email "bot@users.noreply.github.com"
           git checkout -q -b yayin
           git add -A
           git commit -q -m "yayin"
           $url = "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git"
           git push -f $url yayin
+          if ($LASTEXITCODE -ne 0) { Write-Host "GONDERIM BASARISIZ"; exit 1 }
           Write-Host "yayin dali gonderildi"
