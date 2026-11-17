@@ -145,8 +145,8 @@
   </div>
   <div class="sub" id="sub"></div>
   <div style="display:flex;gap:8px;margin:2px 0 10px;flex-wrap:wrap">
-    <a href="/turler" style="padding:5px 10px;border:1px solid #2a3140;border-radius:8px;font-size:12.5px;color:inherit;text-decoration:none">Koşu türleri</a>
-    <a href="/jokeyler" style="padding:5px 10px;border:1px solid #2a3140;border-radius:8px;font-size:12.5px;color:inherit;text-decoration:none">Jokey başarısı</a>
+    <a href="turler.html" style="padding:5px 10px;border:1px solid #2a3140;border-radius:8px;font-size:12.5px;color:inherit;text-decoration:none">Koşu türleri</a>
+    <a href="jokeyler.html" style="padding:5px 10px;border:1px solid #2a3140;border-radius:8px;font-size:12.5px;color:inherit;text-decoration:none">Jokey başarısı</a>
   </div>
   <div class="topbar">
     <div class="datenav" id="datenav"></div>
@@ -163,7 +163,7 @@
 </div>
 
 <footer>
-  <a href="/turler">Koşu türleri istatistiği</a> · <a href="/jokeyler">Jokey başarısı</a><br>
+  <a href="turler.html">Koşu türleri istatistiği</a> · <a href="jokeyler.html">Jokey başarısı</a><br>
   Veri kaynağı: Türkiye Jokey Kulübü (TJK). Bu rapor yalnızca bilgilendirme amaçlıdır; kazanç garantisi vermez. 18+
 </footer>
 
@@ -363,6 +363,7 @@ function renderRaceChips(){
 
 const JK_CACHE={};
 let JK_ALL=false;
+let JK_SIRA='D1';
 let SEC_JOKEY=null;
 let JOKEY_ADLARI=[];
 
@@ -413,7 +414,9 @@ function jokeyKosulari(name){
   const out=[];
   if(!name) return out;
   const n=String(name);
-  (currentDay().Sehirler||[]).forEach(c=>{
+  const secilen = (cityIdx>=0) ? currentCity() : null;
+  const kaynak = secilen ? [secilen] : (currentDay().Sehirler||[]);
+  kaynak.forEach(c=>{
     (c.Kosular||[]).forEach(r=>{
       (r.Atlar||[]).forEach(h=>{
         if(h.Jokey && (String(h.Jokey)===n || tamAd(h.Jokey)===n)){
@@ -430,7 +433,8 @@ function jokeyBar(){
   const yer=ks.map(x=>(x.sehir?esc(x.sehir)+' ':'')+x.no+'. koşu'+(x.at?(' ('+x.at+' no\'lu at)'):'')).join(', ');
   return `<div class="jokeybar"><b>${esc(SEC_JOKEY)}</b> · bugün ${ks.length} binicilik${yer?' — '+esc(yer):''} · <a href="#" onclick="secJokey(null);return false">temizle ✕</a></div>`;
 }
-function secJokey(name){
+function secJokey(name, ci){
+  if(typeof ci==='number' && ci>=0 && cityIdx<0) cityIdx=ci;
   SEC_JOKEY = (!name || SEC_JOKEY===name) ? null : name;
   render();
   if(SEC_JOKEY){
@@ -455,38 +459,42 @@ function renderSideJockey(){
     box.style.marginBottom='10px';
     el.appendChild(box);
     const paint=(arr)=>{
-      if(!arr || !arr.length){
-        // TJK yurt disi hipodromlar icin jokey istatistigi yayinlamiyor: gunun kadrosunu goster
-        const seen={}, jl=[];
-        (city.Kosular||[]).forEach(r=>(r.Atlar||[]).forEach(h=>{ if(h.Jokey && !seen[h.Jokey]){ seen[h.Jokey]=1; jl.push(h.Jokey); } }));
-        if(jl.length){
-          let h=`<div class="small" style="margin:4px 0 2px;color:var(--ink)"><b>${esc(city.Ad)}</b></div>`;
-          h+=`<div class="small">TJK bu hipodrom için jokey istatistiği yayınlamıyor. Günün kadrosu:</div>`;
-          jl.sort().forEach(j=>{ h+=`<div class="rank${SEC_JOKEY===j?' selj':''}" data-j="${esc(j)}"><span>${esc(j)}</span><span class="small">${jokeyKosulari(j).length} koşu</span></div>`; });
-          jl.forEach(a=>{ if(JOKEY_ADLARI.indexOf(a)<0) JOKEY_ADLARI.push(a); });
-          box.innerHTML=h;
-          box.querySelectorAll('[data-j]').forEach(x=>{ x.onclick=function(){ secJokey(x.getAttribute('data-j')); }; });
-        } else {
-          box.innerHTML=`<div class="small">${esc(city.Ad)}: jokey tablosu bulunamadı.</div>`;
-        }
-        return;
-      }
-      const lim=JK_ALL?arr.length:(c?Math.min(20,arr.length):Math.min(10,arr.length));
+      arr = arr || [];
       arr.forEach(x=>{ const a=String(x.Jokey); if(a && JOKEY_ADLARI.indexOf(a)<0) JOKEY_ADLARI.push(a); });
-      let h=`<div class="small" style="margin:4px 0 2px;color:var(--ink)"><b>${esc(city.Ad)}</b></div>`;
-      arr.slice(0,lim).forEach((j,i)=>{
-        const jn=String(j.Jokey);
-        const ks=jokeyKosulari(jn).length;
-        h+=`<div class="rank${SEC_JOKEY===jn?' selj':''}" data-j="${esc(jn)}"><span><b>${i+1}.</b> ${esc(jn)}${ks?` <span class="small">${ks} koşu</span>`:''}</span><span><b>${j.D1==null?'—':j.D1}</b> <span class="small">1. · ${j.Kosu==null?'—':j.Kosu} koşu${j.P1!=null?' · %'+j.P1:''}</span></span></div>`;
+      // Yalnizca bu hipodromda BUGUN binecek jokeyler
+      const kisa={};
+      (city.Kosular||[]).forEach(r=>(r.Atlar||[]).forEach(h=>{ if(h.Jokey){ const k=String(h.Jokey); kisa[k]=(kisa[k]||0)+1; } }));
+      const liste=Object.keys(kisa).map(k=>{
+        const tam=tamAd(k);
+        const st=arr.find(x=>String(x.Jokey)===tam) || arr.find(x=>String(x.Jokey)===k) || null;
+        return { kisa:k, tam:tam, kosu:kisa[k], D1:(st&&st.D1!=null)?st.D1:null, P1:(st&&st.P1!=null)?st.P1:null, sezon:(st&&st.Kosu!=null)?st.Kosu:null };
       });
-      if(c){
-        h+=`<div class="small">birincilik sayısına göre · `;
-        h+= JK_ALL ? `<a href="#" onclick="JK_ALL=false;renderSideJockey();return false">ilk 20</a>`
-                   : `ilk ${lim} / ${arr.length} · <a href="#" onclick="JK_ALL=true;renderSideJockey();return false">tümünü göster</a>`;
-        h+='</div>';
-      }
+      if(!liste.length){ box.innerHTML=`<div class="small">${esc(city.Ad)}: bugün jokey bilgisi yok.</div>`; return; }
+      const pctOf=(j)=>(j.P1!=null ? j.P1 : ((j.D1!=null && j.sezon) ? Math.round(1000*j.D1/j.sezon)/10 : null));
+      liste.sort((a,b)=>{
+        if(JK_SIRA==='PCT'){
+          const ap=pctOf(a), bp=pctOf(b);
+          const A=(ap==null?-1:ap), B=(bp==null?-1:bp);
+          if(B!==A) return B-A;
+        } else {
+          const A=(a.D1==null?-1:a.D1), B=(b.D1==null?-1:b.D1);
+          if(B!==A) return B-A;
+        }
+        return a.tam.localeCompare(b.tam,'tr');
+      });
+      const sbtn=(k,l)=>`<span data-s="${k}" style="cursor:pointer;padding:3px 8px;border:1px solid #2a3140;border-radius:7px;font-size:11.5px;${JK_SIRA===k?'background:#4f8cff;border-color:#4f8cff;color:#fff':''}">${l}</span>`;
+      const ci=(currentDay().Sehirler||[]).indexOf(city);
+      let h=`<div class="small" style="margin:4px 0 2px;color:var(--ink)"><b>${esc(city.Ad)}</b> · bugün binen jokeyler</div>`;
+      h+=`<div style="display:flex;gap:6px;align-items:center;margin:2px 0 6px">${sbtn('D1','1. sayısı')}${sbtn('PCT','galibiyet %')}</div>`;
+      liste.forEach((j,i)=>{
+        const sel=(SEC_JOKEY===j.tam);
+        const yuz=(j.P1!=null)?(' · %'+j.P1):'';
+        h+=`<div class="rank${sel?' selj':''}" data-j="${esc(j.tam)}" data-ci="${ci}"><span><b>${i+1}.</b> ${esc(j.tam)} <span class="small">${j.kosu} koşu</span></span><span><b>${j.D1==null?'—':j.D1}</b> <span class="small">1.${yuz}</span></span></div>`;
+      });
+      h+=`<div class="small">${JK_SIRA==='PCT'?'galibiyet yüzdesine':'birincilik sayısına'} göre · yalnızca bugün binen jokeyler</div>`;
       box.innerHTML=h;
-      box.querySelectorAll('[data-j]').forEach(x=>{ x.onclick=function(){ secJokey(x.getAttribute('data-j')); }; });
+      box.querySelectorAll('[data-s]').forEach(x=>{ x.onclick=function(){ JK_SIRA=x.getAttribute('data-s'); renderSideJockey(); }; });
+      box.querySelectorAll('[data-j]').forEach(x=>{ x.onclick=function(){ secJokey(x.getAttribute('data-j'), parseInt(x.getAttribute('data-ci'),10)); }; });
     };
     if(JK_CACHE[key]){ paint(JK_CACHE[key]); return; }
     box.innerHTML=`<div class="small">${esc(city.Ad)} jokey tablosu yükleniyor…</div>`;
@@ -635,7 +643,7 @@ function turOzet(s, sehir, sadi, n){
   </div>
   <div class="small" style="margin:6px 0">Kazananların HP dağılımı: ${bands||'—'}</div>
   <div style="overflow:auto"><table><thead><tr><th>Tarih</th><th>Şehir</th><th>Pist</th><th>Irk</th><th>Kazanan</th><th>Kilo</th><th>HP</th><th>HP sıra</th><th>AGF</th><th>Fav</th></tr></thead><tbody>${rows}</tbody></table></div>
-  <div class="small" style="margin-top:6px">Son 10 koşu · <a href="/istatistik?tip=${encodeURIComponent(s.Tip||'')}&grup=&n=${n||50}&sehir=${encodeURIComponent(sehir||'-1')}&sadi=${encodeURIComponent(sadi||'')}" target="_blank" rel="noopener">tam sayfa ↗</a></div>`;
+  <div class="small" style="margin-top:6px">Son 10 koşu · <a href="turler.html" target="_blank" rel="noopener">tam sayfa ↗</a></div>`;
 }
 async function turIstatistik(id, tip, sehirId, sadi, opt){
   const box=document.getElementById(id+'t'); if(!box) return;
@@ -686,7 +694,7 @@ function raceCard(race, idx){
     <div class="race-h" onclick="toggleRace('${id}')">
       <span class="race-no">${esc(race.KosuNo)}. Koşu ${esc(race.Saat)}</span>
       <span class="chip">${esc(race.Sehir||'')}</span>
-      <a class="chip link" href="/istatistik?tip=${encodeURIComponent(race.Tip||'')}&grup=&n=50" onclick="event.stopPropagation(); if(window.turIstatistik){ try{ event.preventDefault(); turIstatistik('${id}','${esc(race.Tip||'')}','${race.SehirId||''}','${esc(race.Sehir||'')}'); }catch(e){ window.location.href=this.getAttribute('href'); } }" title="Tıklayınca bu koşu türünün son 50 koşusu burada açılır">${esc(race.Tip)||'—'} ▾</a>
+      <a class="chip link" href="turler.html" onclick="event.stopPropagation(); if(window.turIstatistik){ try{ event.preventDefault(); turIstatistik('${id}','${esc(race.Tip||'')}','${race.SehirId||''}','${esc(race.Sehir||'')}'); }catch(e){ window.location.href=this.getAttribute('href'); } }" title="Tıklayınca bu koşu türünün son 50 koşusu burada açılır">${esc(race.Tip)||'—'} ▾</a>
       <span class="chip">${esc(race.Grup)||''}</span>
       <span class="chip">${race.Mesafe?race.Mesafe+' m':''}</span>
       ${race.Pist?`<span class="chip pist ${pistCls}">${esc(race.Pist)}</span>`:''}
