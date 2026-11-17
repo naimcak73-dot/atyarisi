@@ -155,10 +155,35 @@ foreach ($f in @('turler.html', 'jokeyler.html', 'sw.js', 'manifest.webmanifest'
     if (Test-Path $kaynak) { Copy-Item $kaynak (Join-Path $OutDir $f) -Force }
     else { Log ("uyari: $f bulunamadi, atlandi") }
 }
+
+# Statik API koprusu: /api/... isteklerini veri/*.json dosyalarina cevirir
+$shim = @'
+<script>
+(function(){var of=window.fetch;window.fetch=function(u,o){try{if(typeof u==='string'&&u.indexOf('/api/')===0){var q=new URL(u,location.href),p=q.pathname;
+if(p==='/api/gun')u='veri/gun.json';
+else if(p==='/api/turler')u='veri/turler.json';
+else if(p==='/api/sehirler')u='veri/sehirler.json';
+else if(p==='/api/jokeyler'){var s=q.searchParams.get('sehir')||'-1',y=q.searchParams.get('yil')||new Date().getFullYear();u='veri/jokey-'+s+'-'+y+'.json';}
+else if(p==='/api/istatistik'){var t=(q.searchParams.get('tip')||'').split('/')[0].trim(),n=q.searchParams.get('n')||'50',se=q.searchParams.get('sehir')||'-1';u='veri/istatistik-'+(t+'||'+n+'|'+se).replace(/[^A-Za-z0-9]+/g,'_')+'.json';}
+else if(p==='/api/analiz'){var k=(q.searchParams.get('kosu')||'').replace(/[^A-Za-z0-9_-]/g,'_');u='veri/analiz-'+k+'.json';}
+}}catch(e){}return of(u,o);};})();
+</script>
+'@
+function Add-Shim([string]$path) {
+    if (-not (Test-Path $path)) { return }
+    $t = [System.IO.File]::ReadAllText($path, [System.Text.Encoding]::UTF8)
+    if ($t -match 'of=window.fetch') { return }
+    $t = [regex]::Replace($t, '(<body[^>]*>)', ('$1' + $shim), 1)
+    [System.IO.File]::WriteAllText($path, $t, (New-Object System.Text.UTF8Encoding($false)))
+}
+Add-Shim (Join-Path $OutDir 'turler.html')
+Add-Shim (Join-Path $OutDir 'jokeyler.html')
 if (Test-Path (Join-Path $root 'icons')) { Copy-Item (Join-Path $root 'icons') $OutDir -Recurse -Force }
 
-$shell = Build-Shell $tarih
+$shell = Build-Html $tarih $false
 [System.IO.File]::WriteAllText((Join-Path $OutDir 'index.html'), $shell, (New-Object System.Text.UTF8Encoding($false)))
+[System.IO.File]::WriteAllText((Join-Path $OutDir '.nojekyll'), '', (New-Object System.Text.UTF8Encoding($false)))
+Add-Shim (Join-Path $OutDir 'index.html')
 
 # istatistik sayfalari (tur listesi icin HTML kabuk)
 if ($script:queryOptions) {
