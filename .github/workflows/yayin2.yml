@@ -31,22 +31,26 @@ jobs:
             git push
           } else { Write-Host "kutuphane degismedi" }
 
-      - name: Yayin dalina gonder
+      - name: Worker dalina gonder
         shell: pwsh
         run: |
           git config user.name "atyarisi-bot"
           git config user.email "bot@users.noreply.github.com"
-          $tmp = Join-Path $env:RUNNER_TEMP "yayin"
+          $tmp = Join-Path $env:RUNNER_TEMP "worker"
           New-Item -ItemType Directory -Path $tmp -Force | Out-Null
-          Copy-Item -Path (Join-Path $PWD "public\*") -Destination $tmp -Recurse -Force
+          New-Item -ItemType Directory -Path (Join-Path $tmp "src") -Force | Out-Null
+          New-Item -ItemType Directory -Path (Join-Path $tmp "public") -Force | Out-Null
+          Copy-Item -Path (Join-Path $PWD "public\*") -Destination (Join-Path $tmp "public") -Recurse -Force
+          Copy-Item -Path (Join-Path $PWD "yayin-worker.js") -Destination (Join-Path $tmp "src\_worker.js") -Force
+          Copy-Item -Path (Join-Path $PWD "wrangler.toml") -Destination (Join-Path $tmp "wrangler.toml") -Force
           Set-Location $tmp
           git init -q
           git config user.name "atyarisi-bot"
           git config user.email "bot@users.noreply.github.com"
-          git checkout -q -b yayin
+          git checkout -q -b worker
           git add -A
-          git commit -q -m "yayin"
+          git commit -q -m "worker yayini"
           $url = "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git"
-          git push -f $url yayin
+          git push -f $url worker
           if ($LASTEXITCODE -ne 0) { Write-Host "GONDERIM BASARISIZ"; exit 1 }
-          Write-Host "yayin dali gonderildi"
+          Write-Host "worker dali gonderildi"
