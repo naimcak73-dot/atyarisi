@@ -160,7 +160,7 @@ foreach ($f in @('turler.html', 'jokeyler.html', 'sw.js', 'manifest.webmanifest'
 $shim = @'
 <script>
 (function(){var of=window.fetch;window.fetch=function(u,o){try{if(typeof u==='string'&&u.indexOf('/api/')===0){var q=new URL(u,location.href),p=q.pathname;
-if(p==='/api/gun')u='veri/gun.json';
+if(p==='/api/gun')u='veri/gun.json?t='+Date.now();
 else if(p==='/api/turler')u='veri/turler.json';
 else if(p==='/api/sehirler')u='veri/sehirler.json';
 else if(p==='/api/jokeyler'){var s=q.searchParams.get('sehir')||'-1',y=q.searchParams.get('yil')||new Date().getFullYear();u='veri/jokey-'+s+'-'+y+'.json';}

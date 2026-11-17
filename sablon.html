@@ -141,7 +141,10 @@
 <header><div class="wrap">
   <div class="hrow">
     <h1>At Yarışı Analizi</h1>
-    <button class="themetog" id="themetog" onclick="toggleTheme()">Tema</button>
+    <div style="display:flex;gap:8px">
+      <button class="themetog" id="yenile" onclick="guncelle()">⟳ Güncelle</button>
+      <button class="themetog" id="themetog" onclick="toggleTheme()">Tema</button>
+    </div>
   </div>
   <div class="sub" id="sub"></div>
   <div style="display:flex;gap:8px;margin:2px 0 10px;flex-wrap:wrap">
@@ -264,6 +267,11 @@ function loadDate(iso, push, yabanciOverride){
     });
 }
 function navToDate(iso){ loadDate(iso); }
+function guncelle(){
+  if (location.protocol === 'file:') { location.reload(); return; }
+  loadDate(isoOf(new Date()), false);
+  try { window.scrollTo(0,0); } catch(e){}
+}
 let OPEN_STATS={};
 function findRace(kodu){ let out=null; (DATA.Sehirler||[]).forEach(c=>{ (c.Kosular||[]).forEach(r=>{ if(String(r.KosuKodu)===String(kodu)) out=r; }); }); return out; }
 async function istatistikHesapla(kodu){
