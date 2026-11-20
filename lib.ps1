@@ -102,7 +102,7 @@ function Build-Payload([string]$tarih, [bool]$hizli) {
     $iso = if ($d -ne [datetime]::MinValue) { $d.ToString('yyyy-MM-dd', $script:CIV) } else { '' }
     $out = [pscustomobject]@{
         __api__  = $false
-        Uretim   = (Get-Date).ToString('dd.MM.yyyy HH:mm')
+        Uretim   = [DateTime]::UtcNow.AddHours(3).ToString('dd.MM.yyyy HH:mm')
         Donem    = $Donem
         Tarihler = @($g)
         Tarih    = $g.Tarih
@@ -127,7 +127,7 @@ function Build-Shell([string]$tarih) {
     $tpl = [System.IO.File]::ReadAllText($tplPath, [System.Text.Encoding]::UTF8)
     $shell = [pscustomobject]@{
         __api__  = $true
-        Uretim   = (Get-Date).ToString('dd.MM.yyyy HH:mm')
+        Uretim   = [DateTime]::UtcNow.AddHours(3).ToString('dd.MM.yyyy HH:mm')
         Donem    = $Donem
         Tarih    = $tarih
         TarihISO = (isoFromTRlieu $tarih)
