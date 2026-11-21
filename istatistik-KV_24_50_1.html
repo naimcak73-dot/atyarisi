@@ -1,0 +1,100 @@
+<!doctype html><html lang="tr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>KV-24 istatistigi</title>
+<style>
+:root{--bg:#0f1115;--card:#171a21;--line:#2a3140;--ink:#e8ecf1;--mut:#98a2b3;--acc:#4f8cff}
+*{box-sizing:border-box}body{margin:0;font-family:system-ui,Segoe UI,Arial;background:var(--bg);color:var(--ink);padding:18px}
+.wrap{max-width:900px;margin:0 auto}a{color:var(--acc)}h1{font-size:20px;margin:0 0 4px}h3{font-size:13px;color:var(--mut);margin:18px 0 8px;text-transform:uppercase;letter-spacing:.04em}
+.kpi{display:flex;flex-wrap:wrap;gap:16px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px}
+.kpi div{font-size:13px;color:var(--mut)}.kpi b{display:block;font-size:20px;color:var(--ink)}
+.bars{display:flex;flex-direction:column;gap:6px}.bar{display:grid;grid-template-columns:80px 1fr 60px;gap:8px;align-items:center;font-size:13px}
+.track{height:10px;background:var(--card);border:1px solid var(--line);border-radius:6px;overflow:hidden}.fill{display:block;height:100%;background:var(--acc)}
+.num{text-align:right}.mut{color:var(--mut);font-size:12px}
+.sizebtn{display:inline-block;padding:6px 11px;border:1px solid var(--line);border-radius:8px;text-decoration:none;margin:0 6px 10px 0;font-size:12.5px;color:var(--ink)}
+.sizebtn.sel{background:var(--acc);color:#fff;border-color:var(--acc)}
+.tbl{width:100%;border-collapse:collapse;font-size:12px}.tbl th,.tbl td{padding:6px 7px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap}.tbl th{color:var(--mut);font-size:11px;text-transform:uppercase}
+</style></head><body><div class="wrap">
+<p><a href="/">&larr; Uygulamaya dön</a></p>
+<h1>KV-24  — genel istatistik</h1>
+<div id="citiesel" style="margin-bottom:6px"></div>
+<div id="sizes"></div>
+<div id="content"><p class="mut">Yükleniyor… TJK geçmiş sonuçları çekiliyor.</p></div>
+</div>
+<script>
+var P = { tip: 'KV-24', grup: '', n: 50, sehir: '-1', sadi: '' };
+function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+function citiesel(){
+  var e=document.getElementById('citiesel'); if(!e) return;
+  var h='<a class="sizebtn'+(P.sehir==='-1'?' sel':'')+'" href="#" onclick="yukle(null,\'-1\');return false">Tüm Türkiye</a>';
+  if(P.sadi){ h+='<a class="sizebtn'+(P.sehir!=='-1'?' sel':'')+'" href="#" onclick="yukle(null,\''+P.sehir+'\');return false">'+esc(P.sadi)+'</a>'; }
+  e.innerHTML=h;
+}
+function sizes(cur){ var e=document.getElementById('sizes'), h=''; [20,50,100,200].forEach(function(k){ h+='<a class="sizebtn'+(k===cur?' sel':'')+'" href="#" onclick="yukle('+k+');return false">son '+k+'</a>'; }); e.innerHTML=h; }
+var S=null, F={y:'',i:''};
+async function yukle(k, sehir){
+  if(k) P.n=k;
+  if(sehir) P.sehir=sehir;
+  citiesel(); sizes(P.n);
+  var c=document.getElementById('content');
+  c.innerHTML='<p class="mut">Yükleniyor… TJK geçmiş sonuçları çekiliyor (birkaç saniye).</p>';
+  try{
+    var r=await fetch('/api/istatistik?tip='+encodeURIComponent(P.tip)+'&grup='+encodeURIComponent(P.grup)+'&n='+P.n+'&sehir='+encodeURIComponent(P.sehir));
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    S=await r.json();
+    if(S.Hazirlaniyor){ c.innerHTML='<p class="mut">İstatistik hazırlanıyor… TJK geçmişi taranıyor. Sayfa birkaç dakika içinde kendiliğinden dolacak.</p>'; setTimeout(function(){ yukle(); }, 15000); return; }
+    if(S.Hata){ c.innerHTML='<p class="mut">'+esc(S.Hata)+'</p><p class="mut">TJK yoğun olabilir. <a href="#" onclick="yukle();return false">Tekrar dene</a></p>'; return; }
+    var h='';
+    h+='<div id="filters" style="margin:2px 0 12px"></div>';
+    h+='<div class="kpi" id="kpis"></div><p class="mut" id="kadro"></p>';
+    h+='<h3>Kazananların HP dağılımı (yüksekten düşüğe)</h3><div class="bars" id="bands"></div><p class="mut" id="sknote"></p>';
+    h+='<h3 id="thead">Kazananlar</h3>';
+    h+='<div style="overflow:auto"><table class="tbl"><thead><tr><th>Tarih</th><th>Şehir</th><th>Pist</th><th>Irk</th><th>Kazanan</th><th>Yaş</th><th>Kilo</th><th>AGF</th><th>AGF sıra</th><th>HP</th><th>HP sıra</th><th>Favori</th><th>Alan</th></tr></thead><tbody id="tbody"></tbody></table></div>';
+    c.innerHTML=h;
+    F={y:'',i:''}; render();
+  }catch(e){ c.innerHTML='<p class="mut">Veri alınamadı ('+esc(e.message)+'). <a href="#" onclick="yukle('+k+');return false">Tekrar dene</a></p>'; }
+}
+function num(x){ if(typeof x==='number') return x; var v=parseFloat(String(x==null?'':x).replace(',','.')); return isNaN(v)?null:v; }
+function pct(a,b){ return b?Math.round(1000*a/b)/10:null; }
+function avg(arr){ var v=arr.filter(function(x){return x!=null;}); if(!v.length) return null; var t=0; v.forEach(function(x){t+=x;}); return Math.round(10*t/v.length)/10; }
+function rowsFilt(){ var A=(S&&S.Kosular)||[]; return A.filter(function(r){
+  var p=String(r.Pist||'').toLowerCase();
+  if(F.y==='kum' && p.indexOf('kum')<0) return false;
+  if(F.y==='cim' && !(p.indexOf('çim')>=0 || p.indexOf('cim')>=0)) return false;
+  if(F.y==='sentetik' && p.indexOf('sentetik')<0) return false;
+  if(F.i && String(r.Irk||'')!==F.i) return false;
+  return true;
+}); }
+function fbtn(kind,val,label){ var sel=(F[kind]===val); return '<a class="sizebtn'+(sel?' sel':'')+'" href="#" onclick="setF(\''+kind+'\',\''+val+'\');return false">'+label+'</a>'; }
+function setF(kind,val){ F[kind]=val; render(); }
+function render(){
+  var rows=rowsFilt();
+  document.getElementById('filters').innerHTML=
+    fbtn('y','','Tümü')+fbtn('y','kum','Kum')+fbtn('y','cim','Çim')+fbtn('y','sentetik','Sentetik')+' &nbsp;|&nbsp; '+
+    fbtn('i','','Hepsi')+fbtn('i','Arap','Arap')+fbtn('i','İngiliz','İngiliz');
+  var n=rows.length;
+  var fav=rows.filter(function(r){return !!r.Favori;}).length;
+  var yuk=rows.filter(function(r){return !!r.EnYuksekHP;}).length;
+  var dus=rows.filter(function(r){return !!r.EnDusukHP;}).length;
+  var kilos=rows.map(function(r){return num(r.Kilo);}).filter(function(x){return x!=null;});
+  var yaslar=rows.map(function(r){ var m=String(r.Yas||'').match(/(\d{1,2})/); return m?parseInt(m[1],10):null; }).filter(function(x){return x!=null;});
+  document.getElementById('kpis').innerHTML=
+    '<div>Koşu sayısı <b>'+n+'</b></div>'
+    +'<div>Favori kazanma <b>'+(n?('%'+pct(fav,n)):'—')+'</b></div>'
+    +'<div>Sürpriz <b>'+(n?('%'+pct(n-fav,n)):'—')+'</b></div>'
+    +'<div>En yüksek HP kazandı <b>'+(n?('%'+pct(yuk,n)):'—')+'</b></div>'
+    +'<div>En düşük HP kazandı <b>'+(n?('%'+pct(dus,n)):'—')+'</b></div>'
+    +'<div>Ort. sıklet <b>'+(kilos.length?(avg(kilos)+' kg'):'—')+'</b></div>'
+    +'<div>Ort. yaş <b>'+(yaslar.length?avg(yaslar):'—')+'</b></div>';
+  document.getElementById('kadro').textContent='Tam kadro verisi: '+(S.KadroSayisi||0)+'/'+(S.KosuSayisi||0)+' koşu · seçili kırılımda '+n+' koşu';
+  var hps=rows.map(function(r){return num(r.HP);}).filter(function(x){return x!=null;});
+  var hb='';
+  if(hps.length){ var mn=Math.min.apply(null,hps), mx=Math.max.apply(null,hps); var step=Math.max(5,Math.ceil((mx-mn)/6)); var b=Math.floor(mn/step)*step;
+    while(b<=mx){ var lo=b, hi=b+step-1; var cnt=hps.filter(function(v){return v>=lo&&v<=hi;}).length; var oran=Math.round(1000*cnt/hps.length)/10;
+      hb+='<div class="bar"><span>'+lo+'-'+hi+'</span><span class="track"><span class="fill" style="width:'+Math.round(oran)+'%"></span></span><span class="num">%'+oran+'</span></div>'; b+=step; } }
+  else { hb='<p class="mut">Bu kırılımda HP verisi yok.</p>'; }
+  document.getElementById('bands').innerHTML=hb;
+  document.getElementById('sknote').textContent=kilos.length?('Kazanan sıklet aralığı: '+Math.min.apply(null,kilos)+'-'+Math.max.apply(null,kilos)+' kg'):'';
+  document.getElementById('thead').textContent='Kazananlar ('+n+' koşu)';
+  var tb=rows.map(function(r){ return '<tr><td>'+esc(r.Tarih)+'</td><td>'+esc(r.Sehir)+'</td><td>'+esc(r.Pist)+'</td><td>'+esc(r.Irk)+'</td><td>'+esc(r.At)+'</td><td>'+esc(r.Yas)+'</td><td>'+esc(r.Kilo)+'</td><td>'+(r.Agf!=null?('%'+r.Agf):'—')+'</td><td>'+(r.AgfRank!=null?r.AgfRank:'—')+'</td><td>'+esc(r.HP)+'</td><td>'+(r.HpSira!=null?r.HpSira:'—')+'</td><td>'+(r.Favori?'✔':'')+'</td><td>'+esc(r.Alan)+'</td></tr>'; });
+  document.getElementById('tbody').innerHTML=tb.join('')||'<tr><td colspan="13" class="mut">Bu kırılımda koşu yok.</td></tr>';
+}
+yukle(P.n);
+</script></body></html>
