@@ -2,12 +2,22 @@ param(
     [string]$OutDir = '',
     [int]$MaxAnaliz = 12,
     [int]$MaxStats = 2,
+    [int]$ButceDk = 30,
     [switch]$CacheOnly,
     [switch]$SadeceVeri
 )
 # Bulut yayini icin statik site uretir: public/ klasoru (Cloudflare Pages'e yuklenir).
 $ErrorActionPreference = 'Continue'
 $root = $PSScriptRoot
+# Agir isler (istatistik sifirdan hesaplama) icin zaman butcesi: is akisinin
+# 45 dk sinirina takilmamak icin varsayilan 30 dk. Butce bitince istatistik
+# sifirdan hesaplanmaz, onbellek/kuyruk yoluna dusulur.
+$script:Baslangic = Get-Date
+$script:Butce = $script:Baslangic.AddMinutes($ButceDk)
+function ButceVar { return ((Get-Date) -lt $script:Butce) }
+function Gecen([string]$etiket) {
+    Log ("[{0}] gecen {1} dk, kalan butce {2} dk" -f $etiket, [math]::Round(((Get-Date) - $script:Baslangic).TotalMinutes, 1), [math]::Round(($script:Butce - (Get-Date)).TotalMinutes, 1))
+}
 if (-not $OutDir) { $OutDir = Join-Path $root 'public' }
 $script:Root = $root
 . (Join-Path $root 'lib.ps1')
@@ -66,6 +76,7 @@ if ($payload) {
     YazJson (Join-Path $veri 'gun.json') $payload
     $sr = 0; foreach ($d in @($payload.Tarihler)) { foreach ($c in @($d.Sehirler)) { $sr += @($c.Kosular).Count } }
     Log ("gun verisi yazildi: $sr kosu, $($payload.Tarihler.Count) tarih")
+    Gecen 'gun verisi'
 }
 
 # --- turler / sehirler ---
@@ -98,6 +109,7 @@ if ($payload) {
         YazJson (Join-Path $veri ('jokey--1-' + $script:Donem + '.json')) ([pscustomobject]@{ SehirId = '-1'; Yil = $script:Donem; Jokeyler = $tabTum })
         Log ("jokey -1 -> " + $tabTum.Count)
     }
+    Gecen 'jokey tablolari'
 }
 
 # --- kutuphane: istatistik dosyalarini kopyala ---
@@ -119,7 +131,9 @@ if ($payload) {
                 if (-not $kod) { continue }
                 $hedef = Join-Path $veri ('analiz-' + ($kod -replace '[^A-Za-z0-9_-]', '_') + '.json')
                 if (Test-Path $hedef) { continue }
-                $res = Build-RaceAnalysis $tarih $kod ([string]$r.SehirId) ([string]$r.Sehir) -AllowStatsBuild
+                # istatistigi sifirdan hesaplamak dakikalar suruyor; butce dolduysa
+                # onbellekten oku, eksikse kuyruga at (sayfa "Hazirlaniyor" gosterir)
+                $res = Build-RaceAnalysis $tarih $kod ([string]$r.SehirId) ([string]$r.Sehir) -AllowStatsBuild:(ButceVar)
                 if ($res) {
                     YazJson $hedef $res
                     Copy-Item $hedef (Join-Path $yerelVeri (Split-Path $hedef -Leaf)) -Force
@@ -129,12 +143,14 @@ if ($payload) {
         }
     }
     Log ("analiz yazildi: " + $analizSay)
+    Gecen 'analiz'
 }
 
 # eksik istatistikler (sinirli sayida, kutuphaneye de yazilir)
 $statSay = 0
 foreach ($tip in $tipler.Keys) {
     if ($statSay -ge $MaxStats) { break }
+    if (-not (ButceVar)) { Log "butce doldu, istatistik hesaplama atlandi"; break }
     $dosya = Get-StatsFile $tip '' 50 '-1'
     if (Test-StatsFresh $dosya) { Copy-Item $dosya (Join-Path $veri (Split-Path $dosya -Leaf)) -Force; continue }
     $res = Build-StatsData $tip '' 50 '-1'
@@ -146,6 +162,7 @@ foreach ($tip in $tipler.Keys) {
         $statSay++
         Log ("istatistik uretildi: $tip")
     }
+    Gecen 'istatistik'
 }
 
 if ($SadeceVeri) { Log "sadece veri istendi, HTML atlandi"; return }
