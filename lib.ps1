@@ -421,10 +421,17 @@ function Build-RaceAnalysis([string]$tarih, [string]$kosu, [string]$sehirId, [st
         # yillarca geriye TJK taramasi yapmak tek kosu acilisini dakikalarca
         # bekletiyordu; eksikse kuyruga atilir, arka planda hazirlanir.
         $sf = Get-StatsFile ([string]$race.Tip) ([string]$race.Grup) 50 '-1'
-        $stats = Get-StatsCache $sf
-        if (-not $stats) {
-            if ($AllowStatsBuild) { $stats = Build-StatsData ([string]$race.Tip) ([string]$race.Grup) 50 }
-            else { Add-StatsQueue ([string]$race.Tip) 50 '-1' ([string]$race.Grup) '' '' }
+        if ($AllowStatsBuild) {
+            # Yayin uretimi: dosya varsa oldugu gibi kullan (kadro 0 dahil);
+            # yoksa hesapla. Boylece her kosu icin yillara geri TJK taramasi
+            # yapilip Actions dakikalarca beklemez.
+            if (Test-Path $sf) {
+                try { $stats = [System.IO.File]::ReadAllText($sf, [System.Text.Encoding]::UTF8) | ConvertFrom-Json } catch { $stats = $null }
+            }
+            if (-not $stats) { $stats = Build-StatsData ([string]$race.Tip) ([string]$race.Grup) 50 }
+        } else {
+            $stats = Get-StatsCache $sf
+            if (-not $stats) { Add-StatsQueue ([string]$race.Tip) 50 '-1' ([string]$race.Grup) '' '' }
         }
     }
     $yorum = Build-Verdict $race $stats $cons
