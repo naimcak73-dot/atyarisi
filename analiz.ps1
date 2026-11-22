@@ -62,6 +62,15 @@ function First-Num([string]$s) {
     if ($m.Success) { return (Parse-Num $m.Value) }
     return $null
 }
+# Tam sayi hucreleri (kosu sayisi, birincilik vb.) — 1.183 gibi binlik ayraclarini bozmadan okur
+function First-Int([string]$s) {
+    if ([string]::IsNullOrWhiteSpace($s)) { return $null }
+    $t = ($s -replace '[^\d]', '')
+    if (-not $t) { return $null }
+    $v = 0
+    if ([int]::TryParse($t, [ref]$v)) { return $v }
+    return $null
+}
 function Sha1([string]$s) {
     $sha = [System.Security.Cryptography.SHA1]::Create()
     $bytes = [System.Text.Encoding]::UTF8.GetBytes($s)
@@ -119,7 +128,7 @@ function Get-Cities([string]$html) {
             SehirId = [int]$m.Groups[2].Value
             Ad      = $name
             Url     = $href
-            Yabanci = ($name -match '(?i)(Avustralya|ABD|Kanada|Arjantin|Malezya|Guney Afrika|Güney Afrika|İngiltere|Fransa|Irlanda|İrlanda|Almanya|Brezilya|Sili|Uruguay|Italya|İtalya|Japonya|Katar|Suudi|Bae|Dubai|Hong Kong|Singapur|Yeni Zelanda|Peru|Venezuela|Panama|Meksika|Danimarka|Isvec|İsveç|Norvec|Norveç|Belcika|Belçika|Hollanda|Ispanya|İspanya|Rusya|Polonya|Cek|Çek|Avusturya|Isvicre|İsviçre)')
+            Yabanci = ($name -match '(?i)(Avustralya|ABD|Kanada|Arjantin|Malezya|Guney Afrika|Güney Afrika|İngiltere|Birleşik Krallık|Birlesik Krallik|Krallık|Krallik|Fransa|Irlanda|İrlanda|Almanya|Brezilya|Sili|Uruguay|Italya|İtalya|Japonya|Katar|Suudi|Bae|Dubai|Hong Kong|Singapur|Yeni Zelanda|Peru|Venezuela|Panama|Meksika|Danimarka|Isvec|İsveç|Norvec|Norveç|Belcika|Belçika|Hollanda|Ispanya|İspanya|Rusya|Polonya|Cek|Çek|Avusturya|Isvicre|İsviçre)')
         }
     }
     return $list
@@ -183,8 +192,20 @@ function Get-Races([string]$html, [int]$sehirId, [string]$sehirAdi) {
             if ($v -ge 800 -and $v -le 4000) { $mesafe = $v; break }
         }
         $grup = ''
-        $gm = [regex]::Match($cfgText, '(?i),\s*(.+?)\s*(?:,|$)')
-        if ($gm.Success) { $grup = $gm.Groups[1].Value.Trim() }
+        # "3 ve Yukarı İngilizler - Dişi - Handikap 15" gibi hem virgül hem tire ayraçlı olabilir
+        $gm = [regex]::Match($cfgText, '(?i)(\d+\s*(?:ya[şs]\s*)?(?:ve\s+yukar[ıi]|ya[şs]l[ıi])\s*(?:ingilizler|araplar|ingiliz|arap)[^,\-]*)')
+        if ($gm.Success) {
+            $grup = $gm.Groups[1].Value.Trim()
+            # TJK secenegi "3 ve Yukarı ..." seklinde; "3 Yaş ve Yukarı ..." yazimini esitle
+            $grup = [regex]::Replace($grup, '(?i)^(\d+)\s+ya[şs]\s+', '$1 ')
+        }
+        else {
+            $gm2 = [regex]::Match($cfgText, '(?i),\s*(.+?)\s*(?:,|$)')
+            if ($gm2.Success) { $grup = $gm2.Groups[1].Value.Trim() }
+        }
+        $cinsAd = ''; $cinsId = ''
+        if ($cfgText -match '(?i)\bdi[şs]i') { $cinsAd = 'Dişi'; $cinsId = '2' }
+        elseif ($cfgText -match '(?i)\berkek') { $cinsAd = 'Erkek'; $cinsId = '1' }
 
         # atlar
         $horses = @()
@@ -249,6 +270,8 @@ function Get-Races([string]$html, [int]$sehirId, [string]$sehirAdi) {
             KosuKodu = $kosuKodu
             SehirId  = $sehirId
             Sehir    = $sehirAdi
+            Cinsiyet = $cinsAd
+            CinsiyetId = $cinsId
             KosuNo   = $no
             Saat     = $saat
             Tip      = $tip
@@ -353,22 +376,38 @@ function Get-JockeyTable([string]$sehirId, [string]$yil) {
         $jid = ''
         $jm = [regex]::Match($rh, 'QueryParameter_JokeyId=(\d+)')
         if ($jm.Success) { $jid = $jm.Groups[1].Value }
+        $kosu = First-Int (& $cell 'KosuAdet')
+        if (-not $kosu -or $kosu -le 0) { continue }
+        $d1 = First-Int (& $cell 'derece1'); $d2 = First-Int (& $cell 'derece2'); $d3 = First-Int (& $cell 'derece3')
+        $d4 = First-Int (& $cell 'derece4'); $d5 = First-Int (& $cell 'derece5')
+        # tutarsiz satir (birincilik > kosu ya da yuzde > 100) = bozuk parse, atla
+        if ($null -ne $d1 -and $d1 -gt $kosu) { continue }
+        $p1 = First-Int (& $cell 'derece1yuzde')
+        if ($null -ne $p1 -and $p1 -gt 100) { $p1 = $null }
+        if ($null -eq $p1 -and $kosu -and $null -ne $d1 -and $kosu -gt 0) { $p1 = [int][math]::Round(100 * $d1 / $kosu) }
+        $ilk5 = $null
+        if ($kosu -and $kosu -gt 0) {
+            $top = 0; foreach ($x in @($d1, $d2, $d3, $d4, $d5)) { if ($null -ne $x) { $top += $x } }
+            $ilk5 = [int][math]::Round(100 * $top / $kosu)
+        }
         $list += [pscustomobject]@{
             JokeyId = $jid
             Jokey   = $ad
-            Kosu    = (First-Num (& $cell 'KosuAdet'))
-            D1      = (First-Num (& $cell 'derece1'))
-            D2      = (First-Num (& $cell 'derece2'))
-            D3      = (First-Num (& $cell 'derece3'))
-            D4      = (First-Num (& $cell 'derece4'))
-            D5      = (First-Num (& $cell 'derece5'))
-            P1      = (First-Num (& $cell 'derece1yuzde'))
+            Kosu    = $kosu
+            D1      = $d1
+            D2      = $d2
+            D3      = $d3
+            D4      = $d4
+            D5      = $d5
+            P1      = $p1
+            Ilk5    = $ilk5
         }
     }
     return @($list | Sort-Object @{Expression={ if ($null -ne $_.D1) { $_.D1 } else { -1 } }; Descending=$true }, @{Expression={ if ($null -ne $_.Kosu) { $_.Kosu } else { -1 } }; Descending=$true })
 }
 
 function Get-JockeyWinsMap($races, $sehirId, $donem, $winsCache) {
+    if ($null -eq $winsCache) { $winsCache = @{} }
     $map = @{}
     $tkey = "tablo|$sehirId|$donem"
     if ($winsCache.ContainsKey($tkey)) { $tablo = @($winsCache[$tkey]) }
@@ -377,17 +416,28 @@ function Get-JockeyWinsMap($races, $sehirId, $donem, $winsCache) {
         if (-not $UseCacheOnly) { $tablo = @(Get-JockeyTable $sehirId $donem) }
         $winsCache[$tkey] = $tablo
     }
-    foreach ($t in $tablo) { if ($t.JokeyId) { $map[$t.JokeyId] = $t.D1 } }
-    # tablo bos/erisilemezse at listesindeki jokeyler "veri yok" kalsin
+    # JokeyId -> tablo satiri (Kosu, D1, P1, Ilk5 ...) — panelde gecmis/başari gosterimi icin
+    foreach ($t in $tablo) { if ($t.JokeyId) { $map[$t.JokeyId] = $t } }
     return $map
+}
+function Jockey-Row($h, $winsMap, [bool]$withAt) {
+    $t = $null; if ($h.JokeyId -and $winsMap -and $winsMap.ContainsKey($h.JokeyId)) { $t = $winsMap[$h.JokeyId] }
+    $o = [ordered]@{
+        Jokey = $h.Jokey; JokeyTam = $h.JokeyTam; JokeyId = $h.JokeyId
+        Birincilik = $(if ($t) { $t.D1 } else { $null })
+        Kosu       = $(if ($t) { $t.Kosu } else { $null })
+        Galibiyet  = $(if ($t) { $t.P1 } else { $null })
+        Ilk5       = $(if ($t) { $t.Ilk5 } else { $null })
+    }
+    if ($withAt) { $o['At'] = $h.At }
+    return [pscustomobject]$o
 }
 function Rank-FromMap($horses, $winsMap) {
     $seen = @{}; $arr = @()
     foreach ($h in $horses) {
-        if (-not $h.JokeyId -or $seen.ContainsKey($h.JokeyId)) { continue }
+        if (-not $h.JokeyId -or [string]$h.JokeyId -eq '0' -or $seen.ContainsKey($h.JokeyId)) { continue }
         $seen[$h.JokeyId] = $true
-        $w = $null; if ($winsMap.ContainsKey($h.JokeyId)) { $w = $winsMap[$h.JokeyId] }
-        $arr += [pscustomobject]@{ Jokey = $h.Jokey; JokeyTam = $h.JokeyTam; JokeyId = $h.JokeyId; Birincilik = $w; At = $h.At }
+        $arr += (Jockey-Row $h $winsMap $true)
     }
     return @($arr | Sort-Object @{Expression={ if ($_.Birincilik -ne $null) { $_.Birincilik } else { -1 } }; Descending=$true }, Jokey)
 }
@@ -395,10 +445,9 @@ function City-JockeyRank($races, $winsMap) {
     $seen = @{}; $arr = @()
     foreach ($race in $races) {
         foreach ($h in $race.Atlar) {
-            if (-not $h.JokeyId -or $seen.ContainsKey($h.JokeyId)) { continue }
+            if (-not $h.JokeyId -or [string]$h.JokeyId -eq '0' -or $seen.ContainsKey($h.JokeyId)) { continue }
             $seen[$h.JokeyId] = $true
-            $w = $null; if ($winsMap.ContainsKey($h.JokeyId)) { $w = $winsMap[$h.JokeyId] }
-            $arr += [pscustomobject]@{ Jokey = $h.Jokey; JokeyTam = $h.JokeyTam; JokeyId = $h.JokeyId; Birincilik = $w }
+            $arr += (Jockey-Row $h $winsMap $false)
         }
     }
     return @($arr | Sort-Object @{Expression={ if ($_.Birincilik -ne $null) { $_.Birincilik } else { -1 } }; Descending=$true }, Jokey)
@@ -437,6 +486,167 @@ function Build-Surfaces($race, $histCache) {
         }
     }
     return $res
+}
+
+function Build-Distance($race, $histCache) {
+    # Kosunun mesafesine gore gecmis: tam mesafe + en yakin (+-100 m).
+    $res = @{}
+    $target = 0
+    try { $target = [int]$race.Mesafe } catch {}
+    if ($target -le 0) { return $res }
+    foreach ($h in $race.Atlar) {
+        if (-not $h.AtId) { continue }
+        $hist = if ($histCache.ContainsKey($h.AtId)) { $histCache[$h.AtId] } else { @() }
+        $runs = @($hist | Where-Object { $_.Mesafe -gt 0 -and $null -ne $_.Sira })
+        $exact = @($runs | Where-Object { [int]$_.Mesafe -eq $target })
+        $near = @($runs | Where-Object { [int]$_.Mesafe -ne $target -and [math]::Abs([int]$_.Mesafe - $target) -le 100 })
+        $nearDist = $null
+        if ($near.Count -gt 0) { $nearDist = ($near | Sort-Object { [math]::Abs([int]$_.Mesafe - $target) } | Select-Object -First 1).Mesafe }
+        $res[$h.AtId] = [pscustomobject]@{
+            Mesafe        = $target
+            Kosu          = $exact.Count
+            Birinci       = @($exact | Where-Object { [int]$_.Sira -eq 1 }).Count
+            IlkUc         = @($exact | Where-Object { [int]$_.Sira -ge 1 -and [int]$_.Sira -le 3 }).Count
+            YakinMesafe   = $nearDist
+            YakinKosu     = $near.Count
+            YakinBirinci  = @($near | Where-Object { [int]$_.Sira -eq 1 }).Count
+            IlkKez        = ($runs.Count -gt 0 -and $exact.Count -eq 0 -and $near.Count -eq 0)
+            Gecmis        = $runs.Count
+        }
+    }
+    return $res
+}
+
+# ---- Baba (sire) karnesi: kendi gecmisleri zayif atlarda gercek veri, kotali ----
+$script:SireFile    = Join-Path $script:Root 'veri\baba.json'
+$script:SireMax     = 300      # dosyada tutulacak en fazla baba
+$script:SireMinKosu = 30       # gostermek icin en az kosu
+$script:SireMinAt   = 3        # en az farkli at
+function Dist-Band([int]$m) {
+    if ($m -le 1200) { return '<=1200' }
+    elseif ($m -le 1600) { return '1201-1600' }
+    elseif ($m -le 2000) { return '1601-2000' }
+    else { return '2001+' }
+}
+function Get-SireStore {
+    $store = @{}
+    if (-not (Test-Path $script:SireFile)) { return $store }
+    try { $j = [IO.File]::ReadAllText($script:SireFile, [Text.Encoding]::UTF8) | ConvertFrom-Json } catch { return $store }
+    if (-not $j -or -not $j.babalar) { return $store }
+    foreach ($bp in $j.babalar.PSObject.Properties) {
+        $sire = @{ Son = ''; Atlar = @{} }
+        if ($bp.Value.Son) { $sire.Son = [string]$bp.Value.Son }
+        if ($bp.Value.Atlar) {
+            foreach ($ap in $bp.Value.Atlar.PSObject.Properties) {
+                $a = $ap.Value; $m = @{}
+                if ($a.Mesafe) { foreach ($mp in $a.Mesafe.PSObject.Properties) { $m[$mp.Name] = @{ K = [int]$mp.Value.K; B = [int]$mp.Value.B } } }
+                $sire.Atlar[$ap.Name] = @{ Kosu = [int]$a.Kosu; Birinci = [int]$a.Birinci; KumK = [int]$a.KumK; KumB = [int]$a.KumB; CimK = [int]$a.CimK; CimB = [int]$a.CimB; Mesafe = $m }
+            }
+        }
+        $store[$bp.Name] = $sire
+    }
+    return $store
+}
+function Save-SireStore($store) {
+    if (-not $store -or $store.Count -eq 0) { return }
+    $disk = Get-SireStore
+    foreach ($k in $store.Keys) {
+        if (-not $disk.ContainsKey($k)) { $disk[$k] = $store[$k]; continue }
+        foreach ($aid in $store[$k].Atlar.Keys) { $disk[$k].Atlar[$aid] = $store[$k].Atlar[$aid] }
+        if ($store[$k].Son) { $disk[$k].Son = $store[$k].Son }
+    }
+    # kota: eski (365 gun) ve en az kosulu olanlari at, en fazla 300 baba
+    $temiz = @{}
+    foreach ($k in $disk.Keys) {
+        $s = $disk[$k]; $tot = 0; foreach ($aid in $s.Atlar.Keys) { $tot += [int]$s.Atlar[$aid].Kosu }
+        $eski = $false
+        try { if ($s.Son) { $d = [datetime]::ParseExact($s.Son, 'dd.MM.yyyy', $script:CIV); if (((Get-Date) - $d).TotalDays -gt 365) { $eski = $true } } } catch {}
+        if (-not $eski -and $tot -gt 0) { $temiz[$k] = @{ Toplam = $tot; S = $s } }
+    }
+    $secili = @($temiz.Keys | Sort-Object @{ Expression = { $temiz[$_].Toplam }; Descending = $true } | Select-Object -First $script:SireMax)
+    $babalar = [ordered]@{}
+    foreach ($k in $secili) {
+        $s = $temiz[$k].S
+        $atl = [ordered]@{}
+        foreach ($aid in $s.Atlar.Keys) {
+            $a = $s.Atlar[$aid]
+            $mes = [ordered]@{}
+            foreach ($mb in $a.Mesafe.Keys) { $mes[$mb] = @{ K = [int]$a.Mesafe[$mb].K; B = [int]$a.Mesafe[$mb].B } }
+            $atl[$aid] = @{ Kosu = [int]$a.Kosu; Birinci = [int]$a.Birinci; KumK = [int]$a.KumK; KumB = [int]$a.KumB; CimK = [int]$a.CimK; CimB = [int]$a.CimB; Mesafe = $mes }
+        }
+        $babalar[$k] = @{ Son = $s.Son; Atlar = $atl }
+    }
+    $obj = [pscustomobject]@{ guncelleme = (Get-Date).ToString('s'); babalar = $babalar }
+    try {
+        $dir = Split-Path $script:SireFile -Parent
+        if (-not (Test-Path $dir)) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }
+        [IO.File]::WriteAllText($script:SireFile, ($obj | ConvertTo-Json -Depth 10 -Compress), (New-Object Text.UTF8Encoding($false)))
+    } catch {}
+}
+function Update-SireStore($race, $histCache, $store) {
+    foreach ($h in @($race.Atlar)) {
+        if (-not $h.AtId -or -not $h.Baba) { continue }
+        if (-not $histCache.ContainsKey($h.AtId)) { continue }
+        $hist = @($histCache[$h.AtId])
+        $kosu = 0; $bir = 0; $kk = 0; $kb = 0; $ck = 0; $cb = 0; $mes = @{}; $son = ''
+        foreach ($r in $hist) {
+            if ($null -eq $r.Sira -or [int]$r.Mesafe -le 0) { continue }
+            $kosu++
+            $w = ([int]$r.Sira -eq 1)
+            if ($w) { $bir++ }
+            if ($r.Pist -eq 'Kum') { $kk++; if ($w) { $kb++ } }
+            elseif ($r.Pist -eq 'Çim') { $ck++; if ($w) { $cb++ } }
+            $b = Dist-Band ([int]$r.Mesafe)
+            if (-not $mes.ContainsKey($b)) { $mes[$b] = @{ K = 0; B = 0 } }
+            $mes[$b].K++
+            if ($w) { $mes[$b].B++ }
+            if ($r.Tarih -and $r.Tarih -gt $son) { $son = $r.Tarih }
+        }
+        if ($kosu -eq 0) { continue }
+        $key = (Strip-Tags ([string]$h.Baba)).Trim()
+        if (-not $key) { continue }
+        if (-not $store.ContainsKey($key)) { $store[$key] = @{ Son = ''; Atlar = @{} } }
+        $store[$key].Atlar[[string]$h.AtId] = @{ Kosu = $kosu; Birinci = $bir; KumK = $kk; KumB = $kb; CimK = $ck; CimB = $cb; Mesafe = $mes }
+        if ($son) { $store[$key].Son = $son }
+    }
+}
+function Build-SireHints($race, $histCache, $store) {
+    $out = @{}
+    $hedef = [int]$race.Mesafe
+    $band = Dist-Band $hedef
+    $say = 0
+    foreach ($h in @($race.Atlar)) {
+        if ($say -ge 3) { break }
+        if (-not $h.AtId -or -not $h.Baba) { continue }
+        $hist = @()
+        if ($histCache.ContainsKey($h.AtId)) { $hist = @($histCache[$h.AtId]) }
+        $ownSurf = @($hist | Where-Object { $_.Pist -eq 'Kum' -or $_.Pist -eq 'Çim' }).Count
+        $ownDist = @($hist | Where-Object { [int]$_.Mesafe -eq $hedef }).Count
+        if ($ownSurf -ge 2 -and $ownDist -ge 2) { continue }   # kendi gecmisi yeterliyse gosterme
+        $key = (Strip-Tags ([string]$h.Baba)).Trim()
+        if (-not $store.ContainsKey($key)) { continue }
+        $s = $store[$key]
+        $tot = 0; $bir = 0; $kk = 0; $kb = 0; $ck = 0; $cb = 0; $bK = 0; $bB = 0
+        foreach ($aid in $s.Atlar.Keys) {
+            $a = $s.Atlar[$aid]
+            $tot += [int]$a.Kosu; $bir += [int]$a.Birinci
+            $kk += [int]$a.KumK; $kb += [int]$a.KumB; $ck += [int]$a.CimK; $cb += [int]$a.CimB
+            if ($a.Mesafe.ContainsKey($band)) { $bK += [int]$a.Mesafe[$band].K; $bB += [int]$a.Mesafe[$band].B }
+        }
+        if ($tot -lt $script:SireMinKosu -or $s.Atlar.Count -lt $script:SireMinAt) { continue }
+        $out[[string]$h.AtId] = [pscustomobject]@{
+            Baba     = $key
+            Kosu     = $tot
+            At       = $s.Atlar.Count
+            KumPct   = $(if (($kk + $ck) -gt 0) { [int][math]::Round(100 * $kk / ($kk + $ck)) } else { $null })
+            CimPct   = $(if (($kk + $ck) -gt 0) { [int][math]::Round(100 * $ck / ($kk + $ck)) } else { $null })
+            Band     = $band
+            BandKosu = $bK
+            BandPct  = $(if ($bK -gt 0) { [int][math]::Round(100 * $bB / $bK) } else { $null })
+        }
+        $say++
+    }
+    return $out
 }
 
 function Build-HeadToHead($race, $histCache) {
@@ -479,7 +689,8 @@ function Build-HeadToHead($race, $histCache) {
 function Build-JockeyHorseCombo($race, $histCache) {
     $res = @()
     foreach ($h in $race.Atlar) {
-        if (-not $histCache.ContainsKey($h.AtId)) { continue }
+        if (-not $h.AtId) { continue }
+        if ($null -eq $histCache -or -not $histCache.ContainsKey($h.AtId)) { continue }
         $hist = $histCache[$h.AtId]
         if (-not $h.Jokey) { continue }
         $same = @($hist | Where-Object { $_.Jokey -and ($_.Jokey -eq $h.Jokey) })
@@ -769,10 +980,13 @@ function Build-RaceTypeStats($race, $queryOptions, [string]$sehirId = '-1') {
         $x = Find-OptionId $queryOptions.Irk ($race.Grup + ' ' + $race.Tip); if ($x) { $irkId = $x }
     }
     $cinsiyetId = '-1'
-    if ($queryOptions.PSObject.Properties.Name -contains 'Cinsiyet' -and $queryOptions.Cinsiyet) {
+    if ($race.PSObject.Properties.Name -contains 'CinsiyetId' -and [string]$race.CinsiyetId) { $cinsiyetId = [string]$race.CinsiyetId }
+    elseif ($queryOptions.PSObject.Properties.Name -contains 'Cinsiyet' -and $queryOptions.Cinsiyet) {
         if ($race.Tip -match '(?i)Dişi') { $x = Find-OptionId $queryOptions.Cinsiyet 'Dişi'; if ($x) { $cinsiyetId = $x } }
         elseif ($race.Tip -match '(?i)Erkek') { $x = Find-OptionId $queryOptions.Cinsiyet 'Erkek'; if ($x) { $cinsiyetId = $x } }
     }
+    # istatistik panelinden cinsiyet secildiyse onu kullan (Tumu/Disi/Erkek)
+    if ($race.PSObject.Properties.Name -contains 'CinsiyetId' -and [string]$race.CinsiyetId) { $cinsiyetId = [string]$race.CinsiyetId }
 
     $end = [datetime]::Now
     $start = $end.AddYears(-[math]::Abs($StatsYil))
@@ -783,16 +997,13 @@ function Build-RaceTypeStats($race, $queryOptions, [string]$sehirId = '-1') {
     $dateQs = "QueryParameter_Tarih_Start=" + $start.ToString('dd/MM/yyyy', $script:CIV) + "&QueryParameter_Tarih_End=" + $end.ToString('dd/MM/yyyy', $script:CIV)
     if (-not $sehirId) { $sehirId = '-1' }
     if ($sehirId -notmatch '^-?\d+$') { $sehirId = '-1' }
-    $paramSets = @(
-        ("QueryParameter_SehirId=$sehirId&QueryParameter_IrkId=$irkId&QueryParameter_KosuCinsiId=$cinsId&QueryParameter_GrupId=$grupId&QueryParameter_Cinsiyet=$cinsiyetId"),
-        "QueryParameter_SehirId=$sehirId&QueryParameter_IrkId=-1&QueryParameter_KosuCinsiId=$cinsId&QueryParameter_GrupId=-1&QueryParameter_Cinsiyet=-1"
-    )
-    $html = $null; $rows = @()
-    foreach ($set in $paramSets) {
-        $u = "$script:Base/TR/YarisSever/Query/Data/KosuSorgulama?$dateQs&$set"
-        $html = Invoke-Tjk $u -TimeoutSec 25 -Cat ('sorgu-' + $cinsId + '-' + $set.Length)
-        if ($html) { $rows = @(ConvertFrom-HtmlTable $html); if ($rows.Count -gt 0) { break } }
-    }
+    # Kategori (yaş + ırk) birebir sorgulanır; veri yoksa geniş sorguya DÜŞÜLMEZ.
+    # Aksi halde "Handikap 15" gibi tiplerde 3 yaşlı / 4+ yaşlı koşular karışır.
+    $set = "QueryParameter_SehirId=$sehirId&QueryParameter_IrkId=$irkId&QueryParameter_KosuCinsiId=$cinsId&QueryParameter_GrupId=$grupId&QueryParameter_Cinsiyet=$cinsiyetId"
+    $u = "$script:Base/TR/YarisSever/Query/Data/KosuSorgulama?$dateQs&$set"
+    $html = Invoke-Tjk $u -TimeoutSec 25 -Cat ('sorgu-' + $cinsId + '-' + $grupId + '-' + $irkId + '-' + $cinsiyetId)
+    $rows = @()
+    if ($html) { $rows = @(ConvertFrom-HtmlTable $html) }
     if (-not $html) { return [pscustomobject]@{ Hata="Veri alınamadı (TJK yoğun)"; Tip=$race.Tip; Grup=$race.Grup } }
     if ($rows.Count -eq 0) { return [pscustomobject]@{ Hata="Sonuç bulunamadı"; Tip=$race.Tip; Grup=$race.Grup; CinsId=$cinsId; GrupId=$grupId } }
 
@@ -806,10 +1017,17 @@ function Build-RaceTypeStats($race, $queryOptions, [string]$sehirId = '-1') {
         }
         if ($dd -eq [datetime]::MinValue) { [datetime]::MinValue } else { $dd }
     } -Descending)
+    # mesafe bandi secildiyse once suz, sonra ornek sayisini kes
+    if ($race.PSObject.Properties.Name -contains 'MesafeBand' -and $race.MesafeBand) {
+        $qrows = @($qrows | Where-Object { (Dist-Band ([int](Parse-Num $_.Mesafe))) -eq [string]$race.MesafeBand })
+    }
     if ($StatsKosu -gt 0) { $qrows = @($qrows | Select-Object -First $StatsKosu) }
 
     # tam kadro: gun+sehir sonuc sayfalarindan (1 sayfa = o gunun tum kosulari)
+    # Ozel suzme (mesafe/cinsiyet) isteklerinde bu agir adim atlanir; ozet yine cikar.
+    $skipField = ($race.PSObject.Properties.Name -contains 'HizliField' -and $race.HizliField)
     $need = @{}; $dayCache = @{}; $resCache = @{}; $fieldMap = @{}
+    if (-not $skipField) {
     foreach ($r in $qrows) {
         if (-not $r.KosuKodu) { continue }
         $k = $r.Tarih + '|' + $r.Sehir
@@ -840,15 +1058,20 @@ function Build-RaceTypeStats($race, $queryOptions, [string]$sehirId = '-1') {
             if ($r.KosuKodu -and $resCache[$rk].ContainsKey($r.KosuKodu)) { $fieldMap[$r.KosuKodu] = $resCache[$rk][$r.KosuKodu] }
         }
     }
+    }
 
     $raceList = @()
     $favoriOlan = 0; $enYuksekHpOlan = 0; $enDusukHpOlan = 0; $kosuSayisi = 0; $kadroVar = 0
-    $hps = @(); $sik = @(); $yaslar = @()
+    $hps = @(); $sik = @(); $yaslar = @(); $fieldHps = @(); $fieldSik = @()
     foreach ($r in $qrows) {
         $kosuSayisi++
         $field = @()
         if ($r.KosuKodu -and $fieldMap.ContainsKey($r.KosuKodu)) { $field = @($fieldMap[$r.KosuKodu]) }
-        if ($field.Count -gt 0) { $kadroVar++ }
+        if ($field.Count -gt 0) {
+            $kadroVar++
+            $fieldHps += @($field | ForEach-Object { Parse-Num $_.Hp } | Where-Object { $null -ne $_ })
+            $fieldSik += @($field | ForEach-Object { Parse-Num $_.Kilo } | Where-Object { $null -ne $_ })
+        }
         $isFav = $false; $hpRank = $null; $alan = $field.Count; $wAgf = $null; $wAgfRank = $null
         $isMax = $false; $isMin = $false
         $irkAd = ''
@@ -885,6 +1108,7 @@ function Build-RaceTypeStats($race, $queryOptions, [string]$sehirId = '-1') {
             Tarih  = [string]$r.Tarih
             Sehir  = [string]$r.Sehir
             KosuNo = [string]$r.Kosu
+            Mesafe = [int](Parse-Num $r.Mesafe)
             Pist   = [string]$r.Pist
             At     = [string]$r.At
             Yas    = $wYas
@@ -916,6 +1140,17 @@ function Build-RaceTypeStats($race, $queryOptions, [string]$sehirId = '-1') {
         }
         $bands = @($bands | Sort-Object @{Expression={ [int](($_.Bant -split '-')[0]) };Descending=$true})
     }
+    # Girenlerin (tum kadro) ayni bantlardaki dagilimi: kazanan orani tek
+    # basina yaniltir; karsilastirma icin taban oran sart.
+    $bandsGiren = @()
+    if ($bands.Count -gt 0 -and $fieldHps.Count -gt 0) {
+        foreach ($b in $bands) {
+            $pp = $b.Bant -split '-'
+            $lo = [double]$pp[0]; $hi = [double]$pp[1]
+            $c = @($fieldHps | Where-Object { $_ -ge $lo -and $_ -le $hi }).Count
+            $bandsGiren += [pscustomobject]@{ Bant=$b.Bant; Giren=$c; Oran=[math]::Round(100.0*$c/$fieldHps.Count,1) }
+        }
+    }
     $sikletOzet = $null
     if ($sik.Count -gt 0) {
         $sikletOzet = [pscustomobject]@{
@@ -924,12 +1159,22 @@ function Build-RaceTypeStats($race, $queryOptions, [string]$sehirId = '-1') {
             Max=($sik | Measure-Object -Maximum).Maximum
         }
     }
+    $sikletGiren = $null
+    if ($fieldSik.Count -gt 0) {
+        $sikletGiren = [pscustomobject]@{
+            Ortalama=[math]::Round(($fieldSik | Measure-Object -Average).Average,1)
+            Min=($fieldSik | Measure-Object -Minimum).Minimum
+            Max=($fieldSik | Measure-Object -Maximum).Maximum
+        }
+    }
     return [pscustomobject]@{
-        Tip=$race.Tip; Grup=$race.Grup; CinsId=$cinsId; GrupId=$grupId; IrkId=$irkId; CinsiyetId=$cinsiyetId; SehirId=$sehirId
+        Tip=$race.Tip; Grup=$race.Grup; MesafeBand=$(if ($race.PSObject.Properties.Name -contains 'MesafeBand') { [string]$race.MesafeBand } else { '' }); CinsId=$cinsId; GrupId=$grupId; IrkId=$irkId; CinsiyetId=$cinsiyetId; SehirId=$sehirId
         Yil=$StatsYil; KosuSayisi=$kosuSayisi; HedefKosu=$StatsKosu
         KadroSayisi=$kadroVar; KadroOran= if ($kosuSayisi -gt 0) { [math]::Round(100.0*$kadroVar/$kosuSayisi,0) } else { 0 }
         HpBantlari=$bands
+        HpBantlariGiren=$bandsGiren
         Siklet=$sikletOzet
+        SikletGiren=$sikletGiren
         FavoriKazanma= if ($kosuSayisi -gt 0) { [math]::Round(100.0*$favoriOlan/$kosuSayisi,1) } else { $null }
         SurprizOran= if ($kosuSayisi -gt 0) { [math]::Round(100.0*($kosuSayisi-$favoriOlan)/$kosuSayisi,1) } else { $null }
         EnYuksekHpKazanma= if ($kosuSayisi -gt 0) { [math]::Round(100.0*$enYuksekHpOlan/$kosuSayisi,1) } else { $null }
@@ -967,6 +1212,7 @@ function Build-DayData([string]$TarihStr, $queryOptions, $winsCache, $histCache,
     if (-not $Yabanci) { $cities = @($cities | Where-Object { -not $_.Yabanci -and $_.Ad -notmatch '^Karma' -and $_.Ad -notmatch '\(YD' }) }
     Write-Host ("Şehir sayısı: {0}" -f $cities.Count)
 
+    $sireStore = Get-SireStore
     $cityOut = @()
     foreach ($city in $cities) {
         Write-Host ("-> {0}" -f $city.Ad) -ForegroundColor Green
@@ -988,11 +1234,14 @@ function Build-DayData([string]$TarihStr, $queryOptions, $winsCache, $histCache,
             Write-Host ("   {0}. Koşu {1} [{2}] {3} at" -f $race.KosuNo, $race.Saat, $race.Tip, $race.Atlar.Count)
             $jockeyRank = @()
             if (-not $Hizli) { $jockeyRank = Rank-FromMap $race.Atlar $winsMap }
-            $surf = @{}; $h2h = $null; $combo = @(); $form = @()
+            $surf = @{}; $h2h = $null; $combo = @(); $form = @(); $dist = @{}; $sireHints = @{}
             if (-not $Hizli) {
                 $surf = Build-Surfaces $race $histCache
                 $h2h = Build-HeadToHead $race $histCache
                 $combo = Build-JockeyHorseCombo $race $histCache
+                $dist = Build-Distance $race $histCache
+                Update-SireStore $race $histCache $sireStore
+                $sireHints = Build-SireHints $race $histCache $sireStore
             }
             $form = Build-FormScore $race
             $consensus = Build-Consensus $race $surf $h2h $jockeyRank $form
@@ -1014,11 +1263,13 @@ function Build-DayData([string]$TarihStr, $queryOptions, $winsCache, $histCache,
             $yorum = Build-Verdict $race $stats $consensus
 
             $raceOut += [pscustomobject]@{
-                KosuKodu=$race.KosuKodu; KosuNo=$race.KosuNo; Saat=$race.Saat; Sehir=$race.Sehir; SehirId=$race.SehirId; Tip=$race.Tip; Grup=$race.Grup
+                KosuKodu=$race.KosuKodu; KosuNo=$race.KosuNo; Saat=$race.Saat; Sehir=$race.Sehir; SehirId=$race.SehirId; Tip=$race.Tip; Grup=$race.Grup; Cinsiyet=$race.Cinsiyet; CinsiyetId=$race.CinsiyetId
                 Mesafe=$race.Mesafe; Pist=$race.Pist
                 Atlar=$race.Atlar
                 JokeySira=$jockeyRank
                 Yuzey=$surf
+                MesafeKayit=$dist
+                BabaKarnesi=$sireHints
                 IkiliGecme=$h2h
                 JokeyAt=$combo
                 Form=$form
@@ -1032,6 +1283,7 @@ function Build-DayData([string]$TarihStr, $queryOptions, $winsCache, $histCache,
         $cityOut += [pscustomobject]@{ SehirId=$city.SehirId; Ad=$city.Ad; Yabanci=$city.Yabanci; JokeySira=$cityJockey; Kosular=$raceOut }
     }
 
+    if (-not $Hizli) { Save-SireStore $sireStore }
     return [pscustomobject]@{ Tarih = $TarihStr; Hava = (Get-RaceWeather $progHtml); Sehirler = $cityOut }
 }
 

@@ -18,8 +18,9 @@ input:focus,select:focus{outline:none;border-color:var(--acc)}
 .pill{display:inline-block;padding:2px 7px;border-radius:999px;background:#12151b;border:1px solid var(--line);font-size:11.5px;color:var(--mut)}
 .chip{display:inline-block;padding:5px 10px;border:1px solid var(--line);border-radius:8px;font-size:12.5px;color:var(--ink);background:var(--card);cursor:pointer}
 .chip.sel{background:var(--acc);border-color:var(--acc);color:#fff}
+.backfab{position:fixed;top:10px;right:10px;z-index:20;background:var(--acc);color:#fff;border-radius:999px;padding:7px 12px;font-size:12.5px;text-decoration:none;box-shadow:0 2px 8px rgba(0,0,0,.35)}
 </style></head>
-<body><div class="wrap">
+<body><a class="backfab" href="./">&larr; Uygulama</a><div class="wrap">
 <p><a href="./">&larr; Uygulamaya dön</a> &nbsp;·&nbsp; <a href="turler.html">Koşu türleri ↗</a></p>
 <h1>Jokey başarısı</h1>
 <div class="row">
@@ -53,18 +54,21 @@ function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g, function(c){ ret
 function n(x){ var v=parseInt(x,10); return isNaN(v)?0:v; }
 
 function alan(j){
+  var kosu=n(j.Kosu), p1=n(j.D1);
+  if(kosu<=0 || p1>kosu) return null;          // bozuk/karışık satır gösterme
+  var top=p1+n(j.D2)+n(j.D3)+n(j.D4)+n(j.D5);
   return {
     Jokey: j.Jokey || '',
-    Kosu: n(j.Kosu),
-    P1: n(j.P1), D2: n(j.D2), D3: n(j.D3), D4: n(j.D4), D5: n(j.D5),
-    ilk5: n(j.Kosu) ? Math.round(1000*(n(j.P1)+n(j.D2)+n(j.D3)+n(j.D4)+n(j.D5))/n(j.Kosu))/10 : 0,
-    galibiyet: n(j.Kosu) ? Math.round(1000*n(j.P1)/n(j.Kosu))/10 : 0
+    Kosu: kosu,
+    P1: p1, D2: n(j.D2), D3: n(j.D3), D4: n(j.D4), D5: n(j.D5),
+    ilk5: Math.round(1000*top/kosu)/10,
+    galibiyet: Math.round(1000*p1/kosu)/10
   };
 }
 
 function ciz(){
   var q = (el('ara').value||'').toLowerCase().trim();
-  var rows = VERI.map(alan).filter(function(r){ return !q || r.Jokey.toLowerCase().indexOf(q) >= 0; });
+  var rows = VERI.map(alan).filter(function(r){ return r && (!q || r.Jokey.toLowerCase().indexOf(q) >= 0); });
   rows.sort(function(a,b){
     if(SIRA === 'Jokey') return YON * a.Jokey.localeCompare(b.Jokey,'tr');
     return YON * ((a[SIRA]||0) - (b[SIRA]||0));
@@ -84,9 +88,24 @@ function ciz(){
 
 function yukle(){
   el('durum').style.display = 'block'; el('durum').textContent = 'Yükleniyor…'; el('tablo').style.display = 'none';
-  var u = '/api/jokeyler?sehir='+encodeURIComponent(SEHIR)+'&yil='+encodeURIComponent(YIL);
-  fetch(u).then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); }).then(function(o){
+  // Onbellekte kalmis eski dosyalari atla (GitHub Pages / tarayici cache)
+  var u = '/api/jokeyler?sehir='+encodeURIComponent(SEHIR)+'&yil='+encodeURIComponent(YIL)+'&_='+Date.now();
+  fetch(u, { cache: 'no-store' }).then(function(r){
+    if(!r.ok){
+      // Yayinda her hipodrom dosyasi olmayabilir: Tum Turkiye'ye dus
+      if(String(SEHIR) !== '-1'){ SEHIR = '-1'; cizIller(); yukle(); return null; }
+      throw new Error('HTTP '+r.status);
+    }
+    return r.json();
+  }).then(function(o){
+    if(!o) return;
     VERI = o.Jokeyler || [];
+    if(!VERI.length && String(SEHIR) !== '-1'){
+      // Yayin kopyasinda her hipodrom dosyasi olmayabilir: Tum Turkiye tablosuna dus
+      SEHIR = '-1'; cizIller();
+      el('durum').textContent = 'Bu hipodrom için ayrı tablo yok; Tüm Türkiye gösteriliyor…';
+      yukle(); return;
+    }
     if(!VERI.length){ el('durum').textContent = 'Bu seçim için jokey istatistiği yok.'; return; }
     el('durum').style.display = 'none'; el('tablo').style.display = 'block'; ciz();
   }).catch(function(e){ el('durum').textContent = 'Veri alınamadı ('+(e.message||'hata')+').'; });
@@ -117,7 +136,7 @@ for(var y = bugun; y >= bugun-1; y--){ opt += '<option value="'+y+'">'+y+'</opti
 el('yil').innerHTML = opt; el('yil').value = String(bugun); YIL = String(bugun);
 
 function illeriYukle(){
-  fetch('/api/sehirler').then(function(r){ return r.json(); }).then(function(o){
+  fetch('/api/sehirler?_='+Date.now(), { cache: 'no-store' }).then(function(r){ return r.json(); }).then(function(o){
     ILLER = (o.Sehirler||[]).map(function(c){ return { Id:c.Id, Ad:c.Ad }; });
     if(ILLER.length){ cizIller(); return; }
     return fetch('/api/gun?hizli=1').then(function(r){ return r.json(); }).then(function(g){

@@ -78,7 +78,7 @@ function Build-Payload([string]$tarih, [bool]$hizli) {
     # hizli yol + 5 dk'dan taze onbellek: aga hic cikmadan aninda ver
     if ($hizli -and $cf -and (Test-Path $cf)) {
         try {
-            if (((Get-Date) - (Get-Item $cf).LastWriteTime).TotalMinutes -lt 5) {
+            if (((Get-Date) - (Get-Item $cf).LastWriteTime).TotalMinutes -lt 15) {
                 $c = Read-PayloadCache $cf 'Önbellekten gösteriliyor (son 5 dk).'
                 if ($c) { return $c }
             }
@@ -111,7 +111,8 @@ function Build-Payload([string]$tarih, [bool]$hizli) {
         Sehirler = $g.Sehirler
     }
     # gercek veri geldiyse gun payload'ini onbellege yaz (TJK kapaliyken aninda acilsin)
-    if ($cf -and @($g.Sehirler).Count -gt 0) {
+    # hizli modda jokey/gecmis alanlari bos kalir; onbellegi eksik veriyle ezme
+    if ($cf -and -not $hizli -and @($g.Sehirler).Count -gt 0) {
         try { [System.IO.File]::WriteAllText($cf, (($out | ConvertTo-Json -Depth 16 -Compress) -replace '</','<\/'), (New-Object System.Text.UTF8Encoding($false))) } catch {}
     }
     return $out
@@ -146,12 +147,12 @@ function Build-Html([string]$tarih, [bool]$hizli) {
     return $tpl.Replace('__DATA__', (To-JsonSafe $payload))
 }
 
-function Get-StatsFile([string]$tip, [string]$grup, [int]$n, [string]$sehir) {
+function Get-StatsFile([string]$tip, [string]$grup, [int]$n, [string]$sehir, [string]$mesafe = '', [string]$cins = '') {
     $tip = (([string]$tip) -split '/')[0].Trim()
-    $grup = ''
+    if (-not $grup) { $grup = '' }
     if (-not $sehir) { $sehir = '-1' }
     if ($sehir -notmatch '^-?\d+$') { $sehir = '-1' }
-    $key = (($tip + '|' + $grup + '|' + $n + '|' + $sehir) -replace '[^A-Za-z0-9]+', '_')
+    $key = (($tip + '|' + $grup + '|' + $n + '|' + $sehir + '|' + $mesafe + '|' + $cins) -replace '[^A-Za-z0-9]+', '_')
     if ($key.Length -gt 120) { $key = $key.Substring(0, 120) }
     return (Join-Path (Join-Path $script:Root 'veri') ('istatistik-' + $key + '.json'))
 }
@@ -160,7 +161,11 @@ function Get-StatsCache([string]$file) {
     if (-not (Test-Path $file)) { return $null }
     try {
         $c = ([System.IO.File]::ReadAllText($file, [System.Text.Encoding]::UTF8) | ConvertFrom-Json)
-        if ($c -and -not $c.Hata -and ($c.PSObject.Properties.Name -contains 'KadroSayisi') -and [int]$c.KosuSayisi -gt 0) { return $c }
+        if ($c -and -not $c.Hata -and ($c.PSObject.Properties.Name -contains 'KadroSayisi') -and [int]$c.KosuSayisi -gt 0) {
+            # Kadro atlanarak üretilmiş eski dosyalar (sürpriz/HP boş kalır) geçersiz sayılır.
+            $ozel = (([string]$c.MesafeBand) -ne '') -or (([string]$c.CinsiyetId) -ne '' -and ([string]$c.CinsiyetId) -ne '-1')
+            if ($ozel -or [int]$c.KadroSayisi -gt 0) { return $c }
+        }
     } catch {}
     return $null
 }
@@ -173,40 +178,54 @@ function Test-StatsFresh([string]$file) {
 }
 
 # Istek aninda uzun TJK taramasini engellemek icin istenen istatistigi kuyruga yazar.
-function Add-StatsQueue([string]$tip, [int]$n, [string]$sehir) {
+function Add-StatsQueue([string]$tip, [int]$n, [string]$sehir, [string]$grup = '', [string]$mesafe = '', [string]$cins = '') {
     try {
         $dir = Join-Path $script:Root 'veri'
         if (-not (Test-Path $dir)) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }
         if (-not $sehir) { $sehir = '-1' }
         if ($sehir -notmatch '^-?\d+$') { $sehir = '-1' }
-        $line = ('{0}|{1}|{2}' -f (([string]$tip) -split '/')[0].Trim(), $n, $sehir)
+        $line = ('{0}|{1}|{2}|{3}|{4}|{5}' -f (([string]$tip) -split '/')[0].Trim(), $n, $sehir, $grup, $mesafe, $cins)
         $q = Join-Path $dir 'kuyruk.txt'
         if (Test-Path $q) { try { if (Select-String -Path $q -SimpleMatch -Pattern $line -Quiet) { return } } catch {} }
         Add-Content -Path $q -Value $line -Encoding utf8
+        # Kuyrugu arka planda bosalt (2 dakikada bir en fazla bir kez)
+        $lock = Join-Path $dir 'doldur.lock'
+        $son = $false
+        if (Test-Path $lock) { try { $son = (((Get-Date) - (Get-Item $lock).LastWriteTime).TotalSeconds -lt 120) } catch {} }
+        if (-not $son) {
+            try { [IO.File]::WriteAllText($lock, (Get-Date).ToString('s')) } catch {}
+            try { Start-Process powershell -ArgumentList '-NoProfile', '-File', (Join-Path $script:Root 'istatistik-doldur.ps1'), '-Adet', '6' -WindowStyle Hidden | Out-Null } catch {}
+        }
     } catch {}
 }
 
-function Build-StatsData([string]$tip, [string]$grup, [int]$n, [string]$sehir = '') {
+function Build-StatsData([string]$tip, [string]$grup, [int]$n, [string]$sehir = '', [string]$mesafe = '', [string]$cins = '', [bool]$hizliField = $false) {
     # "Şartlı 4/DHÖW" -> "Şartlı 4" (kutuphane anahtari tek olsun)
     $tip = (([string]$tip) -split '/')[0].Trim()
-    # irk/kum-cim artik ayri boyut olarak hesaplaniyor; anahtar tip + adet + hipodrom
-    $grup = ''
+    # Anahtar: tip + kategori (yaş/ırk) + adet + hipodrom.
+    # Kategori anahtara girmezse "Handikap 15" altında 3 yaşlı/4+ karışır.
+    if (-not $grup) { $grup = '' }
     if (-not $sehir) { $sehir = '-1' }
     if ($sehir -notmatch '^-?\d+$') { $sehir = '-1' }
     $script:StatsKosu = $n
     $dir = Join-Path $script:Root 'veri'
     if (-not (Test-Path $dir)) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }
-    $key = (($tip + '|' + $grup + '|' + $n + '|' + $sehir) -replace '[^A-Za-z0-9]+', '_')
+    $key = (($tip + '|' + $grup + '|' + $n + '|' + $sehir + '|' + $mesafe + '|' + $cins) -replace '[^A-Za-z0-9]+', '_')
     if ($key.Length -gt 120) { $key = $key.Substring(0, 120) }
     $file = Join-Path $dir ('istatistik-' + $key + '.json')
     $cached = $null
     if (Test-Path $file) { try { $cached = ([System.IO.File]::ReadAllText($file, [System.Text.Encoding]::UTF8) | ConvertFrom-Json) } catch {} }
     $cachedValid = ($cached -and -not $cached.Hata -and ($cached.PSObject.Properties.Name -contains 'KadroSayisi') -and [int]$cached.KosuSayisi -gt 0)
+    # Mesafe/cinsiyet süzmesi olmayan bir istatistikte kadro 0 ise dosya eski
+    # (kadro atlanarak üretilmiş) demektir; yeniden hesaplanmalı.
+    if ($cachedValid -and [string]$mesafe -eq '' -and [string]$cins -eq '' -and [int]$cached.KadroSayisi -eq 0) { $cachedValid = $false }
     $fresh = $false
     if ($cachedValid -and (Test-Path $file)) { $age = ((Get-Date) - (Get-Item $file).LastWriteTime).TotalHours; if ($age -lt 24) { $fresh = $true } }
     if ($fresh -and $cached) { return $cached }
     if (-not $queryOptions) { if ($cachedValid) { return $cached }; return [pscustomobject]@{ Hata='TJK sorgu seçenekleri alınamadı'; Tip=$tip; Grup=$grup; KosuSayisi=0 } }
-    $race = [pscustomobject]@{ Tip=$tip; Grup=$grup; SehirId=-1; Sehir=''; Pist=''; Mesafe=0 }
+    # Kadro (tam at listesi) yalnız mesafe/cinsiyet süzmesinde atlanır.
+    # Kategori (grup) seçiliyken de kadro gerekir; yoksa favori/sürpriz/HP boş kalır.
+    $race = [pscustomobject]@{ Tip=$tip; Grup=$grup; SehirId=-1; Sehir=''; Pist=''; Mesafe=0; MesafeBand=$mesafe; CinsiyetId=$cins; HizliField=[bool]($mesafe -or $cins) }
     try {
         $res = Build-RaceTypeStats $race $queryOptions $sehir
         if ($res -and -not $res.Hata -and [int]$res.KosuSayisi -gt 0) {
@@ -337,7 +356,7 @@ yukle(P.n);
 
 function Build-StatsHtml([string]$tip, [string]$grup, [int]$n) {
     $script:StatsKosu = $n
-    $race = [pscustomobject]@{ Tip=$tip; Grup=$grup; SehirId=-1; Sehir=''; Pist=''; Mesafe=0 }
+    $race = [pscustomobject]@{ Tip=$tip; Grup=$grup; SehirId=-1; Sehir=''; Pist=''; Mesafe=0; MesafeBand=$mesafe; CinsiyetId=$cins; HizliField=[bool]($hizliField -or $mesafe -or $cins -or $grup) }
     $s = $null
     if ($queryOptions) { $s = Build-RaceTypeStats $race $queryOptions }
     $tipH = [System.Net.WebUtility]::HtmlEncode($tip)
@@ -370,7 +389,7 @@ function Build-StatsHtml([string]$tip, [string]$grup, [int]$n) {
     return ($parts -join "")
 }
 
-function Build-RaceAnalysis([string]$tarih, [string]$kosu, [string]$sehirId, [string]$ad) {
+function Build-RaceAnalysis([string]$tarih, [string]$kosu, [string]$sehirId, [string]$ad, [switch]$AllowStatsBuild) {
     $esc = [uri]::EscapeDataString($tarih)
     $sid = 0; [void][int]::TryParse($sehirId, [ref]$sid)
     $progUrl = "$script:Base/TR/YarisSever/Info/Page/GunlukYarisProgrami?QueryParameter_Tarih=$esc"
@@ -385,20 +404,34 @@ function Build-RaceAnalysis([string]$tarih, [string]$kosu, [string]$sehirId, [st
     $races = Get-Races $html $sid $city.Ad
     $race = @($races | Where-Object { $_.KosuKodu -eq $kosu }) | Select-Object -First 1
     if (-not $race) { return $null }
+    if ($null -eq $winsCache) { $winsCache = @{} }
+    if ($null -eq $histCache) { $histCache = @{} }
     $winsMap = Get-JockeyWinsMap @($race) $sid $Donem $winsCache
     $jr = Rank-FromMap $race.Atlar $winsMap
     $surf = Build-Surfaces $race $histCache
     $h2h = Build-HeadToHead $race $histCache
     $combo = Build-JockeyHorseCombo $race $histCache
+    $sireHints = @{}
+    try { $sireHints = Build-SireHints $race $histCache (Get-SireStore) } catch {}
     $form = Build-FormScore $race
     $cons = Build-Consensus $race $surf $h2h $jr $form
     $stats = $null
-    if ($queryOptions) { $stats = Build-StatsData ([string]$race.Tip) ([string]$race.Grup) 50 }
+    if ($queryOptions) {
+        # Kosu paneli icin istatistik YALNIZCA onbellekten okunur. Yoksa burada
+        # yillarca geriye TJK taramasi yapmak tek kosu acilisini dakikalarca
+        # bekletiyordu; eksikse kuyruga atilir, arka planda hazirlanir.
+        $sf = Get-StatsFile ([string]$race.Tip) ([string]$race.Grup) 50 '-1'
+        $stats = Get-StatsCache $sf
+        if (-not $stats) {
+            if ($AllowStatsBuild) { $stats = Build-StatsData ([string]$race.Tip) ([string]$race.Grup) 50 }
+            else { Add-StatsQueue ([string]$race.Tip) 50 '-1' ([string]$race.Grup) '' '' }
+        }
+    }
     $yorum = Build-Verdict $race $stats $cons
     $genis = Build-ExtendedVerdict $race $form $jr $surf $combo
     return [pscustomobject]@{
         KosuKodu  = $kosu
-        JokeySira = $jr; Yuzey = $surf; IkiliGecme = $h2h; JokeyAt = $combo
+        JokeySira = $jr; Yuzey = $surf; IkiliGecme = $h2h; JokeyAt = $combo; BabaKarnesi = $sireHints
         Form      = $form; Konsensus = $cons; Istatistik = $stats; Yorum = $yorum; GenisYorum = $genis
     }
 }
@@ -493,9 +526,27 @@ function Handle-Client($client, $config) {
             else { Send-Response $stream 200 'application/json' (To-JsonSafe $payload) }
         } elseif ($path -eq '/api/analiz') {
             $tarih = Resolve-Tarih $params['tarih']
-            $res = Build-RaceAnalysis $tarih $params['kosu'] $params['sehir'] $params['ad']
-            if ($res) { Send-Response $stream 200 'application/json' (To-JsonSafe $res) }
-            else { Send-Response $stream 404 'application/json' '{"error":"analiz yok"}' }
+            # Kosu ayrintisi diskte onbelleklenir: gecmis kosular sabittir (7 gun),
+            # bugunun kosusu 10 dk. Boylece ayni kosuya tekrar tiklamak beklemez.
+            $akey = $tarih + '|' + $params['kosu'] + '|' + $params['sehir'] + '|' + $params['ad']
+            $adir = Join-Path $script:Root 'cache'
+            if (-not (Test-Path $adir)) { try { New-Item -ItemType Directory -Path $adir -Force | Out-Null } catch {} }
+            $acf = Join-Path $adir ('analiz-' + (Sha1 $akey) + '.json')
+            $attl = 168.0
+            $ad = [datetime]::MinValue
+            try { if ([datetime]::TryParseExact($tarih, 'dd/MM/yyyy', $script:CIV, 'None', [ref]$ad)) { if ($ad.Date -ge (Get-Date).Date) { $attl = 0.17 } } } catch {}
+            $afresh = $false
+            if (Test-Path $acf) { try { $afresh = (((Get-Date) - (Get-Item $acf).LastWriteTime).TotalHours -lt $attl) } catch {} }
+            if ($afresh) {
+                Send-Response $stream 200 'application/json' ([System.IO.File]::ReadAllText($acf, [System.Text.Encoding]::UTF8))
+            } else {
+                $res = Build-RaceAnalysis $tarih $params['kosu'] $params['sehir'] $params['ad']
+                if ($res) {
+                    $body = To-JsonSafe $res
+                    try { [System.IO.File]::WriteAllText($acf, $body, (New-Object System.Text.UTF8Encoding($false))) } catch {}
+                    Send-Response $stream 200 'application/json' $body
+                } else { Send-Response $stream 404 'application/json' '{"error":"analiz yok"}' }
+            }
         } elseif ($path -eq '/istatistik') {
             $tip = $params['tip']; $grup = $params['grup']; $n = 100
             if ($params['n']) { [void][int]::TryParse($params['n'], [ref]$n) }
@@ -517,19 +568,34 @@ function Handle-Client($client, $config) {
             $kullanilan = $yil
             if (-not $tab.Count -and $yil -ne '-1') { $tab = @(Get-JockeyTable $sid '-1'); $kullanilan = '-1' }
             Send-Response $stream 200 'application/json' (To-JsonSafe ([pscustomobject]@{ SehirId=$sid; Yil=$kullanilan; Jokeyler=$tab }))
+        } elseif ($path -eq '/api/kategoriler') {
+            # Istatistik panelindeki kategori (yas+irk) ve cinsiyet secenekleri
+            $grup = @(); $cins = @()
+            if ($script:queryOptions) {
+                if ($script:queryOptions.PSObject.Properties.Name -contains 'Grup' -and $script:queryOptions.Grup) {
+                    $grup = @($script:queryOptions.Grup | Where-Object { $_.Ad -and [string]$_.Id -ne '-1' } | ForEach-Object { [pscustomobject]@{ Id = [string]$_.Id; Ad = [string]$_.Ad } })
+                }
+                if ($script:queryOptions.PSObject.Properties.Name -contains 'Cinsiyet' -and $script:queryOptions.Cinsiyet) {
+                    $cins = @($script:queryOptions.Cinsiyet | Where-Object { $_.Ad -and [string]$_.Id -ne '-1' } | ForEach-Object { [pscustomobject]@{ Id = [string]$_.Id; Ad = [string]$_.Ad } })
+                }
+            }
+            Send-Response $stream 200 'application/json' (To-JsonSafe ([pscustomobject]@{ Grup = $grup; Cinsiyet = $cins }))
         } elseif ($path -eq '/api/istatistik') {
             $tip = $params['tip']; $grup = $params['grup']; $n = 100
             if ($params['n']) { [void][int]::TryParse($params['n'], [ref]$n) }
             $uret = ($params['uret'] -eq '1')
-            $dosya = Get-StatsFile $tip $grup $n $params['sehir']
-            if (-not $uret -and -not (Test-StatsFresh $dosya)) {
+            $mesafeB = [string]$params['mesafe']; $cinsB = [string]$params['cins']
+            $hizliF = ($params['hizli'] -eq '1')
+            $dosya = Get-StatsFile $tip $grup $n $params['sehir'] $mesafeB $cinsB
+            # mesafe/cinsiyet secildiyse kuyruga atma; istegi aninda hesapla (kucuk ornek, hizli)
+            if (-not $uret -and -not $hizliF -and -not $mesafeB -and -not $cinsB -and -not (Test-StatsFresh $dosya)) {
                 $bayat = Get-StatsCache $dosya
                 if ($bayat) {
-                    Add-StatsQueue $tip $n $params['sehir']
+                    Add-StatsQueue $tip $n $params['sehir'] $grup $mesafeB $cinsB
                     $bayat | Add-Member -NotePropertyName Bayat -NotePropertyValue $true -Force
                     Send-Response $stream 200 'application/json' (To-JsonSafe $bayat)
                 } else {
-                    Add-StatsQueue $tip $n $params['sehir']
+                    Add-StatsQueue $tip $n $params['sehir'] $grup $mesafeB $cinsB
                     $bekle = [pscustomobject]@{
                         Hazirlaniyor = $true
                         Tip          = (([string]$tip) -split '/')[0].Trim()
@@ -540,7 +606,7 @@ function Handle-Client($client, $config) {
                     Send-Response $stream 200 'application/json' (To-JsonSafe $bekle)
                 }
             } else {
-                Send-Response $stream 200 'application/json' (To-JsonSafe (Build-StatsData $tip $grup $n $params['sehir']))
+                Send-Response $stream 200 'application/json' (To-JsonSafe (Build-StatsData $tip $grup $n $params['sehir'] $mesafeB $cinsB $hizliF))
             }
         } elseif ($path -eq '/api/turler') {
             $liste = @()
@@ -564,8 +630,10 @@ function Handle-Client($client, $config) {
             Send-Response $stream 200 'application/json' (To-JsonSafe ([pscustomobject]@{ Sehirler = $liste }))
         } elseif ($path -eq '/turler') {
             Send-File $stream (Join-Path $script:Root 'turler.html') 'text/html; charset=utf-8'
-        } elseif ($path -eq '/jokeyler') {
+        } elseif ($path -eq '/jokeyler' -or $path -eq '/jokeyler.html') {
             Send-File $stream (Join-Path $script:Root 'jokeyler.html') 'text/html; charset=utf-8'
+        } elseif ($path -eq '/turler.html') {
+            Send-File $stream (Join-Path $script:Root 'turler.html') 'text/html; charset=utf-8'
         } elseif ($path -eq '/tam') {
             $tarih = Resolve-Tarih $params['tarih']
             $hizli = ($params['hizli'] -eq '1')

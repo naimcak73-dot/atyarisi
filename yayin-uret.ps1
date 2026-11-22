@@ -119,7 +119,7 @@ if ($payload) {
                 if (-not $kod) { continue }
                 $hedef = Join-Path $veri ('analiz-' + ($kod -replace '[^A-Za-z0-9_-]', '_') + '.json')
                 if (Test-Path $hedef) { continue }
-                $res = Build-RaceAnalysis $tarih $kod ([string]$r.SehirId) ([string]$r.Sehir)
+                $res = Build-RaceAnalysis $tarih $kod ([string]$r.SehirId) ([string]$r.Sehir) -AllowStatsBuild
                 if ($res) {
                     YazJson $hedef $res
                     Copy-Item $hedef (Join-Path $yerelVeri (Split-Path $hedef -Leaf)) -Force

@@ -31,13 +31,29 @@ input:focus,select:focus{outline:none;border-color:var(--acc)}
 .spin{color:var(--mut);font-size:13px;padding:8px 0}
 .not{background:#12151b;border-left:3px solid var(--acc);border-radius:8px;padding:9px 12px;margin:10px 0;font-size:12.8px;line-height:1.55;color:#cfd6e2}
 .not b{color:var(--ink)}
+.backfab{position:fixed;top:10px;right:10px;z-index:20;background:var(--acc);color:#fff;border-radius:999px;padding:7px 12px;font-size:12.5px;text-decoration:none;box-shadow:0 2px 8px rgba(0,0,0,.35)}
 </style></head>
-<body><div class="wrap">
+<body><a class="backfab" href="./">&larr; Uygulama</a><div class="wrap">
 <p><a href="./">&larr; Uygulamaya dön</a> &nbsp;·&nbsp; <a href="jokeyler.html">Jokey başarısı ↗</a></p>
 <h1>Koşu türleri — istatistik</h1>
 <div class="row">
   <input id="ara" type="search" placeholder="Ara: kv, handikap 16, şartlı 4…" style="flex:1;min-width:220px" autocomplete="off">
   <select id="sehir"><option value="-1">Tüm Türkiye</option></select>
+</div>
+<div class="row" style="margin-top:8px">
+  <select id="kategori"><option value="">Kategori: Tümü</option></select>
+  <select id="cins">
+    <option value="">Cinsiyet: Tümü</option>
+    <option value="2">Dişi</option>
+    <option value="1">Erkek</option>
+  </select>
+  <select id="mesafe">
+    <option value="">Mesafe: Tümü</option>
+    <option value="<=1200">≤1200</option>
+    <option value="1201-1600">1201-1600</option>
+    <option value="1601-2000">1601-2000</option>
+    <option value="2001+">2001+</option>
+  </select>
 </div>
 <div class="chips" id="chips"><span class="spin">Türler yükleniyor…</span></div>
 
@@ -46,6 +62,8 @@ input:focus,select:focus{outline:none;border-color:var(--acc)}
     <h1 id="baslik" style="font-size:17px;margin:0"></h1>
     <div class="row" id="boyutlar"></div>
   </div>
+  <div class="small mut" style="margin:8px 0 2px">Kategori (yaş/ırk):</div>
+  <div class="chips" id="katchips"></div>
   <div id="durum" class="spin"></div>
   <div id="icerik" style="display:none">
     <div class="not" id="not"></div>
@@ -61,15 +79,28 @@ input:focus,select:focus{outline:none;border-color:var(--acc)}
     </tr></thead><tbody id="tbody"></tbody></table></div>
   </div>
 </div>
+<p style="margin:18px 0"><a href="./">&larr; Uygulamaya dön</a> &nbsp;·&nbsp; <a href="jokeyler.html">Jokey başarısı ↗</a></p>
 </div>
 <script>
 var TUR = [], SEC = null, N = 50, SEHIR = '-1', S = null, F = {y:'', i:'', a:''}, SIRA = '';
+var GRUP = '', CINS = '', MES = '';
+var KAT_LIST = [];
 
 function el(id){ return document.getElementById(id); }
 function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
 function pct(a,b){ return b ? Math.round(1000*a/b)/10 : null; }
 function num(x){ if(typeof x==='number') return x; var v=parseFloat(String(x==null?'':x).replace(',','.')); return isNaN(v)?null:v; }
 function avg(a){ a=a.filter(function(x){return x!=null;}); if(!a.length) return null; var t=0; a.forEach(function(x){t+=x;}); return Math.round(10*t/a.length)/10; }
+
+// Kategori adı ırkı belirliyorsa ("4 Yaş ve Yukarı Araplar") alt ırk süzgeci
+// kendiliğinden ona geçer; diğer ırk düğmesi pasif olur.
+function kategoriIrk(){
+  var g = String(GRUP||'').replace(/İ/g,'i').toLowerCase();
+  if(g.indexOf('arap')>=0) return 'Arap';
+  if(g.indexOf('ingiliz')>=0) return 'İngiliz';
+  return '';
+}
+var LAST_KAT = null;
 
 function cizTurler(){
   var q = (el('ara').value||'').toLowerCase().replace(/\s+/g,' ').trim();
@@ -94,8 +125,49 @@ function cizTurler(){
 
 el('ara').oninput = cizTurler;
 
+var KAT_FALLBACK = ['2 Yaşlı İngilizler','2 ve Yukarı İngilizler','3 Yaşlı İngilizler','3 ve Yukarı İngilizler','3 Yaşlı Araplar','3 ve Yukarı Araplar','4 Yaşlı Araplar','4 ve Yukarı İngilizler','4 ve Yukarı Araplar','5 ve Yukarı Araplar'];
+function katEtiket(a){
+  // API degeri "3 ve Yukarı İngilizler"; yarış kartındaki okunuş "3 Yaş ve Yukarı İngilizler"
+  return String(a).replace(/^(\d+)\s+ve\s+Yukarı/, '$1 Yaş ve Yukarı');
+}
+function katOps(adlar){
+  var ops = '<option value="">Kategori: Tümü</option>';
+  adlar.forEach(function(a){ ops += '<option value="'+esc(a)+'">'+esc(katEtiket(a))+'</option>'; });
+  return ops;
+}
+function katYukle(){
+  if(el('kategori')) el('kategori').innerHTML = katOps(KAT_FALLBACK);
+  fetch('/api/kategoriler', { cache: 'no-store' }).then(function(r){ return r.json(); }).then(function(d){
+    var adlar = ((d && d.Grup) || []).map(function(g){ return g.Ad; });
+    if(adlar.length){ KAT_LIST = adlar; if(el('kategori')) el('kategori').innerHTML = katOps(adlar); cizKatChips(); }
+  }).catch(function(){});
+}
+function secimDegisti(){
+  GRUP = el('kategori') ? el('kategori').value : '';
+  CINS = el('cins') ? el('cins').value : '';
+  MES = el('mesafe') ? el('mesafe').value : '';
+  if(SEC) yukle(0);
+}
+['kategori','cins','mesafe'].forEach(function(id){ if(el(id)) el(id).onchange = secimDegisti; });
+katYukle();
+
+function cizKatChips(){
+  if(!el('katchips')) return;
+  var list = (KAT_LIST && KAT_LIST.length) ? KAT_LIST : KAT_FALLBACK;
+  var h = '<span class="chip'+(GRUP===''?' sel':'')+'" data-k="">Tümü</span>';
+  list.forEach(function(a){ h += '<span class="chip'+(GRUP===a?' sel':'')+'" data-k="'+esc(a)+'" title="'+esc(a)+'">'+esc(katEtiket(a))+'</span>'; });
+  el('katchips').innerHTML = h;
+  Array.prototype.forEach.call(el('katchips').querySelectorAll('.chip'), function(c){
+    c.onclick = function(){
+      GRUP = c.getAttribute('data-k') || '';
+      if(el('kategori')) el('kategori').value = GRUP;
+      cizKatChips();
+      if(SEC) yukle(0);
+    };
+  });
+}
 function secTur(tip){
-  SEC = tip; cizTurler();
+  SEC = tip; cizTurler(); cizKatChips();
   el('sonuc').style.display = 'block';
   el('baslik').textContent = tip + ' — istatistik';
   el('boyutlar').innerHTML = [20,50,100,200].map(function(k){
@@ -111,7 +183,7 @@ function yukle(deneme){
   el('durum').style.display = 'block';
   el('durum').textContent = deneme ? ('Bu tür ilk kez hesaplanıyor — TJK geçmişi taranıyor ('+Math.round(deneme*5)+' sn). Sayfa kendiliğinden dolacak.') : 'Yükleniyor…';
   el('icerik').style.display = 'none';
-  var u = '/api/istatistik?tip='+encodeURIComponent(SEC)+'&grup=&n='+N+'&sehir='+encodeURIComponent(SEHIR);
+  var u = '/api/istatistik?tip='+encodeURIComponent(SEC)+'&grup='+encodeURIComponent(GRUP)+'&mesafe='+encodeURIComponent(MES)+'&cins='+encodeURIComponent(CINS)+'&n='+N+'&sehir='+encodeURIComponent(SEHIR);
   fetch(u).then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); }).then(function(s){
     if(s.Hazirlaniyor){
       if(deneme < 60){ setTimeout(function(){ yukle(deneme+1); }, 5000); return; }
@@ -156,18 +228,21 @@ function yorum(n, fav, yuk, dus, kilo, yas){
 }
 
 function ciz(){
+  var katIrk = kategoriIrk();
+  if(LAST_KAT !== GRUP){ F.i = katIrk; LAST_KAT = GRUP; }
   var rows = satirlar(), n = rows.length;
   var fav = rows.filter(function(r){return !!r.Favori;}).length;
   var yuk = rows.filter(function(r){return !!r.EnYuksekHP;}).length;
   var dus = rows.filter(function(r){return !!r.EnDusukHP;}).length;
   var kilo = avg(rows.map(function(r){ return num(r.Kilo); }));
   var yas = avg(rows.map(function(r){ var m=String(r.Yas||'').match(/(\d{1,2})/); return m?parseInt(m[1],10):null; }));
+  var hasF = (S.KadroSayisi||0) > 0;
   el('kpis').innerHTML =
     '<div>Koşu <b>'+n+'</b></div>'
-    +'<div>Favori kazanma <b>'+(n?('%'+pct(fav,n)):'—')+'</b></div>'
-    +'<div>Sürpriz <b>'+(n?('%'+pct(n-fav,n)):'—')+'</b></div>'
-    +'<div>En yüksek HP <b>'+(n?('%'+pct(yuk,n)):'—')+'</b></div>'
-    +'<div>En düşük HP <b>'+(n?('%'+pct(dus,n)):'—')+'</b></div>'
+    +'<div>Favori kazanma <b>'+(hasF&&n?('%'+pct(fav,n)):'—')+'</b></div>'
+    +'<div>Sürpriz <b>'+(hasF&&n?('%'+pct(n-fav,n)):'—')+'</b></div>'
+    +'<div>En yüksek HP <b>'+(hasF&&n?('%'+pct(yuk,n)):'—')+'</b></div>'
+    +'<div>En düşük HP <b>'+(hasF&&n?('%'+pct(dus,n)):'—')+'</b></div>'
     +'<div>Ort. sıklet <b>'+(kilo?(kilo+' kg'):'—')+'</b></div>'
     +'<div>Ort. yaş <b>'+(yas||'—')+'</b></div>';
   el('kadro').textContent = 'Tam kadro: '+(S.KadroSayisi||0)+'/'+(S.KosuSayisi||0)+' koşu'+(S.Bayat?' · veri 24 saatten eski (tazeleniyor)':'');
@@ -185,14 +260,19 @@ function ciz(){
   }
   el('bands').innerHTML = b || '<span class="mut">HP verisi yok.</span>';
 
-  var yaslar = {};
-  rows.forEach(function(r){ var m=String(r.Yas||'').match(/(\d{1,2})/); if(m) yaslar[m[1]]=true; });
-  var yasBtns = Object.keys(yaslar).sort(function(a,b){return a-b;}).map(function(a){ return fbtn('a', a, a+' yaş'); }).join('');
+  // Yaş filtresi kaldırıldı: yarış kategorisi (3 Yaşlı / 3 ve Yukarı ...) üstteki
+  // "Kategori" süzgecinden seçilir. Tablodaki yaş, kazanan atın yaşıdır; kategori değildir.
+  var irkBtns;
+  if(katIrk){
+    var diger = katIrk==='Arap' ? 'İngiliz' : 'Arap';
+    irkBtns = '<span class="btn sel">'+esc(katIrk)+'</span><span class="btn" style="opacity:.3;cursor:not-allowed" title="Kategoriye aykırı">'+esc(diger)+'</span>';
+  } else {
+    irkBtns = fbtn('i','','Hepsi')+fbtn('i','Arap','Arap')+fbtn('i','İngiliz','İngiliz');
+  }
   el('filters').innerHTML = fbtn('y','','Tümü')+fbtn('y','kum','Kum')+fbtn('y','cim','Çim')+fbtn('y','sentetik','Sentetik')
-    +' &nbsp;|&nbsp; '+fbtn('i','','Hepsi')+fbtn('i','Arap','Arap')+fbtn('i','İngiliz','İngiliz')
-    +' &nbsp;|&nbsp; '+(yasBtns||'');
+    +' &nbsp;|&nbsp; '+irkBtns;
   Array.prototype.forEach.call(el('filters').querySelectorAll('.btn'), function(x){
-    x.onclick = function(){ F[x.getAttribute('data-k')] = x.getAttribute('data-v'); ciz(); };
+    x.onclick = function(){ var k=x.getAttribute('data-k'); if(!k) return; F[k] = x.getAttribute('data-v'); ciz(); };
   });
 
   el('tbody').innerHTML = rows.slice(0,200).map(function(r){
