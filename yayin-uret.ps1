@@ -208,7 +208,7 @@ foreach ($tip in $tipler.Keys) {
 if ($SadeceVeri) { Log "sadece veri istendi, HTML atlandi"; return }
 
 # --- statik sayfalar ---
-foreach ($f in @('turler.html', 'jokeyler.html', 'sw.js', 'manifest.webmanifest')) {
+foreach ($f in @('turler.html', 'jokeyler.html', 'sw.js', 'manifest.webmanifest', 'logo.png')) {
     $kaynak = Join-Path $root $f
     if (Test-Path $kaynak) { Copy-Item $kaynak (Join-Path $OutDir $f) -Force }
     else { Log ("uyari: $f bulunamadi, atlandi") }
