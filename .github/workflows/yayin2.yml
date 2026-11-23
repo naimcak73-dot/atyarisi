@@ -19,7 +19,12 @@ jobs:
         shell: pwsh
         run: ./yayin-uret.ps1 -MaxAnaliz 6 -MaxStats 2
 
+      # Kutuphane (istatistik/analiz onbellegi) main'e yazilir. Ayni dosyalar
+      # onceki calismalarda da uretildigi icin rebase sirasinda cakisma olabilir:
+      # uretilen JSON'larda "bizim yeni dosyamiz" kazanir. Bu adim basarisiz olsa
+      # bile site yayini durmaz (continue-on-error).
       - name: Kutuphane degisikliklerini kaydet
+        continue-on-error: true
         shell: pwsh
         run: |
           git config user.name "atyarisi-bot"
@@ -27,8 +32,10 @@ jobs:
           git add veri/istatistik-*.json veri/analiz-*.json
           if (-not (git diff --cached --quiet)) {
             git commit -m "kutuphane guncellendi"
-            git pull --rebase
+            git pull --rebase -X theirs
+            if ($LASTEXITCODE -ne 0) { git rebase --abort; Write-Host "kutuphane birlestirilemedi, site yayini devam ediyor"; exit 0 }
             git push
+            if ($LASTEXITCODE -ne 0) { Write-Host "kutuphane gonderilemedi, site yayini devam ediyor" }
           } else { Write-Host "kutuphane degismedi" }
 
       - name: GitHub Pages dalina gonder
