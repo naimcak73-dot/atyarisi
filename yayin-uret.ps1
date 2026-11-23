@@ -72,6 +72,7 @@ $tarih = $bugun.ToString('dd/MM/yyyy', $script:CIV)
 $payload = Build-Payload $tarih $true
 if (-not $payload) { Log "gun verisi alinamadi"; }
 $gunDosya = $null
+$gunIsoList = @()
 if ($payload) {
     $iso = $bugun.ToString('yyyyMMdd')
     $gunDosya = Join-Path $veri ('gun-' + $iso + '.json')
@@ -80,6 +81,24 @@ if ($payload) {
     $sr = 0; foreach ($d in @($payload.Tarihler)) { foreach ($c in @($d.Sehirler)) { $sr += @($c.Kosular).Count } }
     Log ("gun verisi yazildi: $sr kosu, $($payload.Tarihler.Count) tarih")
     Gecen 'gun verisi'
+
+    # Dun'un programi: sayfada "Onceki gun" calissin diye ayri dosya.
+    $gunIsoList = @($iso)
+    if (ButceVar) {
+        try {
+            $dun = $bugun.AddDays(-1)
+            $dunTarih = $dun.ToString('dd/MM/yyyy', $script:CIV)
+            $pDun = Build-Payload $dunTarih $true
+            if ($pDun) {
+                $di = $dun.ToString('yyyyMMdd')
+                YazJson (Join-Path $veri ('gun-' + $di + '.json')) $pDun
+                $gunIsoList += $di
+                $srd = 0; foreach ($d in @($pDun.Tarihler)) { foreach ($c in @($d.Sehirler)) { $srd += @($c.Kosular).Count } }
+                Log ("dun gun verisi yazildi: $srd kosu ($dunTarih)")
+            }
+        } catch { Log ("dun gun verisi alinamadi: " + $_.Exception.Message) }
+        Gecen 'dun'
+    }
 
     # Yurt disi gun verisi AYRI dosyaya: sayfada "Yurt disi" acilinca istemci
     # /api/gun?...&yabanci=1 ister; statik kopru bu dosyaya yonlendirilir.
@@ -198,8 +217,8 @@ foreach ($f in @('turler.html', 'jokeyler.html', 'sw.js', 'manifest.webmanifest'
 # Statik API koprusu: /api/... isteklerini veri/*.json dosyalarina cevirir
 $shim = @'
 <script>
-(function(){var of=window.fetch;window.fetch=function(u,o){try{if(typeof u==='string'&&u.indexOf('/api/')===0){var q=new URL(u,location.href),p=q.pathname;
-if(p==='/api/gun')u=(q.searchParams.get('yabanci')==='1'?'veri/gun-yabanci.json':'veri/gun.json')+'?t='+Date.now();
+(function(){var GL=__GUNLER__;var of=window.fetch;window.fetch=function(u,o){try{if(typeof u==='string'&&u.indexOf('/api/')===0){var q=new URL(u,location.href),p=q.pathname;
+if(p==='/api/gun'){var tt=q.searchParams.get('tarih')||'',yd=q.searchParams.get('yabanci')==='1',is='';if(/^\d{4}-\d{2}-\d{2}$/.test(tt))is=tt.replace(/-/g,'');else if(/^\d{2}\/\d{2}\/\d{4}$/.test(tt)){var aa=tt.split('/');is=aa[2]+aa[1]+aa[0];}u=(yd?'veri/gun-yabanci.json':(is&&GL.indexOf(is)>=0?'veri/gun-'+is+'.json':'veri/gun.json'))+'?t='+Date.now();}
 else if(p==='/api/turler')u='veri/turler.json';
 else if(p==='/api/sehirler')u='veri/sehirler.json';
 else if(p==='/api/jokeyler'){var s=q.searchParams.get('sehir')||'-1',y=q.searchParams.get('yil')||new Date().getFullYear();u='veri/jokey-'+s+'-'+y+'.json';}
@@ -208,6 +227,10 @@ else if(p==='/api/analiz'){var k=(q.searchParams.get('kosu')||'').replace(/[^A-Z
 }}catch(e){}return of(u,o);};})();
 </script>
 '@
+# Yayinlanan gunlerin ISO listesi (gun dosyalari): ["20261123","20261122"]
+$gunJson = '["' + (@($gunIsoList) -join '","') + '"]'
+$shim = $shim.Replace('__GUNLER__', $gunJson)
+
 function Add-Shim([string]$path) {
     if (-not (Test-Path $path)) { return }
     $t = [System.IO.File]::ReadAllText($path, [System.Text.Encoding]::UTF8)
