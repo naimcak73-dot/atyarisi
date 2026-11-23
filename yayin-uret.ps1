@@ -80,6 +80,24 @@ if ($payload) {
     $sr = 0; foreach ($d in @($payload.Tarihler)) { foreach ($c in @($d.Sehirler)) { $sr += @($c.Kosular).Count } }
     Log ("gun verisi yazildi: $sr kosu, $($payload.Tarihler.Count) tarih")
     Gecen 'gun verisi'
+
+    # Yurt disi gun verisi AYRI dosyaya: sayfada "Yurt disi" acilinca istemci
+    # /api/gun?...&yabanci=1 ister; statik kopru bu dosyaya yonlendirilir.
+    if (ButceVar) {
+        try {
+            $script:Yabanci = $true
+            $yd = Build-Payload $tarih $true
+            if ($yd) {
+                YazJson (Join-Path $veri 'gun-yabanci.json') $yd
+                $sy = 0; foreach ($d in @($yd.Tarihler)) { foreach ($c in @($d.Sehirler)) { $sy += @($c.Kosular).Count } }
+                Log ("yabanci gun yazildi: $sy kosu")
+                # Not: yurt disi kosularin ayrintili analizi uretilmiyor (TJK detay cagrilari
+                # dakikalarca suruyor). Sayfa, analiz dosyasi yoksa eldeki kosu verisiyle acar.
+            }
+        } catch { Log ("yabanci gun alinamadi: " + $_.Exception.Message) }
+        finally { $script:Yabanci = $false }
+        Gecen 'yabanci gun'
+    }
 }
 
 # --- turler / sehirler ---
@@ -181,7 +199,7 @@ foreach ($f in @('turler.html', 'jokeyler.html', 'sw.js', 'manifest.webmanifest'
 $shim = @'
 <script>
 (function(){var of=window.fetch;window.fetch=function(u,o){try{if(typeof u==='string'&&u.indexOf('/api/')===0){var q=new URL(u,location.href),p=q.pathname;
-if(p==='/api/gun')u='veri/gun.json?t='+Date.now();
+if(p==='/api/gun')u=(q.searchParams.get('yabanci')==='1'?'veri/gun-yabanci.json':'veri/gun.json')+'?t='+Date.now();
 else if(p==='/api/turler')u='veri/turler.json';
 else if(p==='/api/sehirler')u='veri/sehirler.json';
 else if(p==='/api/jokeyler'){var s=q.searchParams.get('sehir')||'-1',y=q.searchParams.get('yil')||new Date().getFullYear();u='veri/jokey-'+s+'-'+y+'.json';}
@@ -201,7 +219,10 @@ Add-Shim (Join-Path $OutDir 'turler.html')
 Add-Shim (Join-Path $OutDir 'jokeyler.html')
 if (Test-Path (Join-Path $root 'icons')) { Copy-Item (Join-Path $root 'icons') $OutDir -Recurse -Force }
 
-$shell = Build-Html $tarih $false
+# hizli=$true: gomulu ilk veri de hizli payload olsun. Tam veri (hizli=$false)
+# TJK'da dakikalarca surup yayini 45 dk sinirina yaklastiriyordu; detaylar
+# analiz dosyalari + istemci tarafindaki /api/jokeyler ile tamamlanir.
+$shell = Build-Html $tarih $true
 [System.IO.File]::WriteAllText((Join-Path $OutDir 'index.html'), $shell, (New-Object System.Text.UTF8Encoding($false)))
 [System.IO.File]::WriteAllText((Join-Path $OutDir '.nojekyll'), '', (New-Object System.Text.UTF8Encoding($false)))
 Add-Shim (Join-Path $OutDir 'index.html')

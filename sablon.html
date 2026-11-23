@@ -354,7 +354,16 @@ async function istatistikHesapla(kodu){
       if(s.Hazirlaniyor){ await new Promise(function(z){ setTimeout(z,7000); }); continue; }
       if(s.Hata) throw new Error(s.Hata);
       race.Istatistik=s; OPEN_STATS[String(kodu)]=true; hideBanner(); render(); return;
-    }catch(e){ showError('İstatistik alınamadı ('+((e&&e.message)||'hata')+').', DATA.TarihISO); return; }
+    }catch(e){
+      const m=((e&&e.message)||'hata');
+      // Statik yayında bu koşu türü için istatistik dosyası olmayabilir: kırmızı hata yerine bilgi
+      if(/HTTP 404/.test(m)){
+        ensureBanner().innerHTML='<span class="mut">Bu koşu için kategori istatistiği yayında yok; koşu bilgileri gösteriliyor.</span>';
+        setTimeout(function(){ try{ hideBanner(); }catch(_){} }, 4000);
+        return;
+      }
+      showError('İstatistik alınamadı ('+m+').', DATA.TarihISO); return;
+    }
   }
   showError('İstatistik hazırlanıyor; birkaç dakika sonra tekrar deneyin.', DATA.TarihISO);
 }
@@ -374,12 +383,13 @@ async function analizYukle(kodu){
     hideBanner();
     render();
   }catch(e){
-    // Analiz dosyası yoksa (statik yayın) en azından jokey başarısını göster
+    // Analiz dosyası yoksa (statik yayın) koşuyu eldeki veriyle göster; kırmızı hata verme
     await jokeySiraDoldur(race);
-    if((race.JokeySira||[]).length || race.__detay){
+    const m=((e&&e.message)||'hata');
+    if(/HTTP 404/.test(m) || (race.JokeySira||[]).length || race.__detay){
       hideBanner(); render();
     } else {
-      showError('Ayrıntılı analiz alınamadı ('+((e&&e.message)||'hata')+').', iso);
+      showError('Ayrıntılı analiz alınamadı ('+m+').', iso);
     }
   }
 }
