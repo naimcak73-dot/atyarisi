@@ -272,6 +272,7 @@ function gunAdi(tr){ const p=String(tr||'').split(/[./]/); if(p.length<3) return
 function isoOf(d){ const x=new Date(d.getTime()-d.getTimezoneOffset()*60000); return x.toISOString().slice(0,10); }
 function isoFromTR(s){ const p=(s||'').split('/'); if(p.length===3) return `${p[2]}-${p[1]}-${p[0]}`; return isoOf(new Date()); }
 let currentAbort = null;
+let loadSeq = 0;
 let lastGoodIso = null;
 function isoToTR(iso){ const p=(iso||'').split('-'); return p.length===3 ? (p[2]+'/'+p[1]+'/'+p[0]) : iso; }
 function prevIso(iso){
@@ -295,8 +296,12 @@ function loadDate(iso, push, yabanciOverride){
   const qs = new URLSearchParams(location.search);
   const hizli = qs.get('hizli') !== '0';
   const yabanci = (typeof yabanciOverride === 'boolean') ? yabanciOverride : (qs.get('yabanci') === '1');
+  const bugunIso = isoOf(new Date());
+  const gelecek = iso > bugunIso;          // yarın/sonrası: TJK programı henüz yok
+  const seq = ++loadSeq;                   // her istek kendi numarasını alır
   const b = ensureBanner();
-  b.innerHTML='Yükleniyor… '+esc(iso)+' <button onclick="loadDate(\''+prevIso(iso)+'\')">‹ Önceki gün</button> <button onclick="loadDate(\''+isoOf(new Date())+'\')">Bugüne dön</button>';
+  b.className='loadbanner';
+  b.innerHTML='Yükleniyor… '+esc(iso)+' <button onclick="loadDate(\''+prevIso(iso)+'\')">‹ Önceki gün</button> <button onclick="loadDate(\''+bugunIso+'\')">Bugüne dön</button>';
   if (currentAbort) { try { currentAbort.abort(); } catch(e){} }
   currentAbort = window.AbortController ? new AbortController() : null;
   const opts = currentAbort ? { signal: currentAbort.signal } : {};
@@ -304,13 +309,42 @@ function loadDate(iso, push, yabanciOverride){
   fetch('/api/gun?tarih=' + encodeURIComponent(iso) + '&hizli=' + (hizli?'1':'0') + (yabanci?'&yabanci=1':''), opts)
     .then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); })
     .then(function(p){
+      if (seq !== loadSeq) return;          // daha yeni bir istek başladı: bunun sonucu yok sayılır
       clearTimeout(to);
       DATA=p; initFromData(); render(); hideBanner();
       lastGoodIso = p.TarihISO || iso;
+      const geldiIso = p.TarihISO || isoFromTR(p.Tarih || '');
+      if (!gelecek && iso && geldiIso && geldiIso !== iso) {
+        // İstenen gün yayında/önbellekte yok: kırmızı hata yerine bilgi ver.
+        const bb = ensureBanner();
+        bb.className='loadbanner';
+        bb.innerHTML=esc(isoToTR(iso))+' yayında yok — '+(p.Tarih||'son veri')+' gösteriliyor.';
+        setTimeout(function(){ if(seq === loadSeq) hideBanner(); }, 4500);
+        return;
+      }
+      if (gelecek) {
+        // Gelecek gün için sunucu/statik köprü son mevcut günü döndürür.
+        // Kırmızı hata yerine kısa bilgi göster ve adres çubuğunu değiştirme.
+        const goster = (p.Tarih || '');
+        const bb = ensureBanner();
+        bb.className='loadbanner';
+        bb.innerHTML='Yarının programı henüz yayında değil'+(goster?' — '+esc(goster)+' gösteriliyor':'')+'.';
+        setTimeout(function(){ if(seq === loadSeq) hideBanner(); }, 4500);
+        return;
+      }
       if (push !== false) { try { history.pushState({tarih:iso}, '', '/?tarih='+encodeURIComponent(iso)+(hizli?'&hizli=1':'')+(yabanci?'&yabanci=1':'')); } catch(e){} }
     })
     .catch(function(e){
+      if (seq !== loadSeq) return;          // iptal edilen eski istek: kırmızı uyarı verme
       clearTimeout(to);
+      if (gelecek) {
+        // Gelecek gün verisi yoksa (404/503) kırmızı hata değil, bilgi göster.
+        const bb = ensureBanner();
+        bb.className='loadbanner';
+        bb.innerHTML='Yarının programı henüz yayında değil.';
+        setTimeout(function(){ if(seq === loadSeq) hideBanner(); }, 4500);
+        return;
+      }
       const msg = (e && e.name === 'AbortError') ? 'zaman aşımı' : ((e && e.message) ? e.message : 'hata');
       const shown = (DATA && DATA.Tarih) ? DATA.Tarih : '';
       showError(isoToTR(iso) + ' yüklenemedi (' + msg + ').' + (shown ? ' Şu an ' + shown + ' gösteriliyor.' : ''), iso);
