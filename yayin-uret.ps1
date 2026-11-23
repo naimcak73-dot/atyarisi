@@ -66,7 +66,10 @@ $queryOptions = $script:queryOptions
 # GitHub sunucusu UTC saat kullanir; TJK Turkiye saatine (UTC+3) gore yayin yapar.
 $bugun = [DateTime]::UtcNow.AddHours(3)
 $tarih = $bugun.ToString('dd/MM/yyyy', $script:CIV)
-$payload = Build-Payload $tarih $false
+# hizli=$true: gun verisi ~4 sn (tam veri TJK'da dakikalarca suruyor ve is akisini
+# 45 dk sinirina yaklastiriyordu). Jokey sirasi ve detaylar istemci tarafinda
+# /api/jokeyler + analiz dosyalarindan tamamlanir.
+$payload = Build-Payload $tarih $true
 if (-not $payload) { Log "gun verisi alinamadi"; }
 $gunDosya = $null
 if ($payload) {
