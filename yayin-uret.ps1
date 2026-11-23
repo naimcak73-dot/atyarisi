@@ -81,9 +81,29 @@ if ($payload) {
     $sr = 0; foreach ($d in @($payload.Tarihler)) { foreach ($c in @($d.Sehirler)) { $sr += @($c.Kosular).Count } }
     Log ("gun verisi yazildi: $sr kosu, $($payload.Tarihler.Count) tarih")
     Gecen 'gun verisi'
+    $gunIsoList = @($iso)
+
+    # Yarin'in programi: TJK aksamlari yayinliyor. Sayfada "sonraki gun"
+    # calissin diye ayri dosya. Veri gercekten yarina ait degilse (TJK henuz
+    # yayinlamadiysa) dosya yazilmaz; istemci bilgi bandi gosterir.
+    if (ButceVar) {
+        try {
+            $yarin = $bugun.AddDays(1)
+            $yarinTarih = $yarin.ToString('dd/MM/yyyy', $script:CIV)
+            $pYarin = Build-Payload $yarinTarih $true
+            $beklenen = $yarin.ToString('yyyy-MM-dd')
+            if ($pYarin -and ([string]$pYarin.TarihISO) -eq $beklenen) {
+                $yi = $yarin.ToString('yyyyMMdd')
+                YazJson (Join-Path $veri ('gun-' + $yi + '.json')) $pYarin
+                $gunIsoList += $yi
+                $sy2 = 0; foreach ($d in @($pYarin.Tarihler)) { foreach ($c in @($d.Sehirler)) { $sy2 += @($c.Kosular).Count } }
+                Log ("yarin gun verisi yazildi: $sy2 kosu ($yarinTarih)")
+            } else { Log ("yarin gun verisi yok ($yarinTarih) - TJK henuz yayinlamamis olabilir") }
+        } catch { Log ("yarin gun verisi alinamadi: " + $_.Exception.Message) }
+        Gecen 'yarin'
+    }
 
     # Dun'un programi: sayfada "Onceki gun" calissin diye ayri dosya.
-    $gunIsoList = @($iso)
     if (ButceVar) {
         try {
             $dun = $bugun.AddDays(-1)
@@ -218,7 +238,10 @@ foreach ($f in @('turler.html', 'jokeyler.html', 'sw.js', 'manifest.webmanifest'
 $shim = @'
 <script>
 (function(){var GL=__GUNLER__;var of=window.fetch;window.fetch=function(u,o){try{if(typeof u==='string'&&u.indexOf('/api/')===0){var q=new URL(u,location.href),p=q.pathname;
-if(p==='/api/gun'){var tt=q.searchParams.get('tarih')||'',yd=q.searchParams.get('yabanci')==='1',is='';if(/^\d{4}-\d{2}-\d{2}$/.test(tt))is=tt.replace(/-/g,'');else if(/^\d{2}\/\d{2}\/\d{4}$/.test(tt)){var aa=tt.split('/');is=aa[2]+aa[1]+aa[0];}u=(yd?'veri/gun-yabanci.json':(is&&GL.indexOf(is)>=0?'veri/gun-'+is+'.json':'veri/gun.json'))+'?t='+Date.now();}
+if(p==='/api/gun'){var tt=q.searchParams.get('tarih')||'',yd=q.searchParams.get('yabanci')==='1',is='';if(/^\d{4}-\d{2}-\d{2}$/.test(tt))is=tt.replace(/-/g,'');else if(/^\d{2}\/\d{2}\/\d{4}$/.test(tt)){var aa=tt.split('/');is=aa[2]+aa[1]+aa[0];}
+ if(yd)u='veri/gun-yabanci.json?t='+Date.now();
+ else if(is){var d='veri/gun-'+is+'.json?t='+Date.now(),fb='veri/gun.json?t='+Date.now();if(GL.indexOf(is)>=0)u=d;else return of(d,o).then(function(r){return r.ok?r:of(fb,o);});}
+ else u='veri/gun.json?t='+Date.now();}
 else if(p==='/api/turler')u='veri/turler.json';
 else if(p==='/api/sehirler')u='veri/sehirler.json';
 else if(p==='/api/jokeyler'){var s=q.searchParams.get('sehir')||'-1',y=q.searchParams.get('yil')||new Date().getFullYear();u='veri/jokey-'+s+'-'+y+'.json';}

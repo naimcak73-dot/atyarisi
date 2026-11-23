@@ -322,13 +322,11 @@ function loadDate(iso, push, yabanciOverride){
         setTimeout(function(){ if(seq === loadSeq) hideBanner(); }, 4500);
         return;
       }
-      if (gelecek) {
-        // Gelecek gün için sunucu/statik köprü son mevcut günü döndürür.
-        // Kırmızı hata yerine kısa bilgi göster ve adres çubuğunu değiştirme.
-        const goster = (p.Tarih || '');
+      if (gelecek && iso && geldiIso && geldiIso !== iso) {
+        // Yarının programı henüz üretilmemişse son günü göster, kırmızı verme.
         const bb = ensureBanner();
         bb.className='loadbanner';
-        bb.innerHTML='Yarının programı henüz yayında değil'+(goster?' — '+esc(goster)+' gösteriliyor':'')+'.';
+        bb.innerHTML='Yarının programı henüz yayında değil — '+(p.Tarih||'son veri')+' gösteriliyor.';
         setTimeout(function(){ if(seq === loadSeq) hideBanner(); }, 4500);
         return;
       }
@@ -1072,6 +1070,19 @@ if (DATA.__api__) {
 } else {
   initFromData();
   render();
+  // Statik kopya: gömülü/güncel dosya dünden kalmışsa bugünün verisini
+  // arka planda tazele (telefon PWA eski sayfayı önbellekten açarsa düzelsin).
+  try {
+    const qs2 = new URLSearchParams(location.search);
+    const urlTarih = qs2.get('tarih') || '';
+    const mevcut = DATA.TarihISO || isoFromTR(DATA.Tarih || '');
+    const bugun = isoOf(new Date());
+    const pwa = (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || navigator.standalone;
+    // Tarayıcıda açıkça seçilen tarihe dokunma; PWA eski tarihle açıldıysa bugüne dön.
+    if (mevcut && mevcut !== bugun && location.protocol !== 'file:' && (!urlTarih || (pwa && urlTarih < bugun))) {
+      setTimeout(function(){ loadDate(bugun, false); }, 250);
+    }
+  } catch(e){}
 }
 if ('serviceWorker' in navigator && location.protocol !== 'file:') { navigator.serviceWorker.register('/sw.js').catch(function(){}); }
 </script>
