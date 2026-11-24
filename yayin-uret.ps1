@@ -127,9 +127,11 @@ if ($payload) {
             $script:Yabanci = $true
             $yd = Build-Payload $tarih $true
             if ($yd) {
+                $yi = $bugun.ToString('yyyyMMdd')
+                YazJson (Join-Path $veri ('gun-' + $yi + '-yd.json')) $yd
                 YazJson (Join-Path $veri 'gun-yabanci.json') $yd
                 $sy = 0; foreach ($d in @($yd.Tarihler)) { foreach ($c in @($d.Sehirler)) { $sy += @($c.Kosular).Count } }
-                Log ("yabanci gun yazildi: $sy kosu")
+                Log ("yabanci gun yazildi: $sy kosu ($yi)")
                 # Not: yurt disi kosularin ayrintili analizi uretilmiyor (TJK detay cagrilari
                 # dakikalarca suruyor). Sayfa, analiz dosyasi yoksa eldeki kosu verisiyle acar.
             }
@@ -175,6 +177,21 @@ if ($payload) {
 # --- kutuphane: istatistik dosyalarini kopyala ---
 Get-ChildItem $yerelVeri -Filter 'istatistik-*.json' -ErrorAction SilentlyContinue | ForEach-Object {
     Copy-Item $_.FullName (Join-Path $veri $_.Name) -Force
+}
+# Onceki calismalardan kalan gun/analiz dosyalarini yayina tasi (gh-pages her
+# sefer sifirdan kuruluyor; bu kopya olmazsa gecmis gunler siteden silinir).
+Get-ChildItem $yerelVeri -Filter 'gun-*.json' -ErrorAction SilentlyContinue | ForEach-Object {
+    Copy-Item $_.FullName (Join-Path $veri $_.Name) -Force
+}
+Get-ChildItem $yerelVeri -Filter 'analiz-*.json' -ErrorAction SilentlyContinue | ForEach-Object {
+    Copy-Item $_.FullName (Join-Path $veri $_.Name) -Force
+}
+Get-ChildItem $yerelVeri -Filter 'jokey-*.json' -ErrorAction SilentlyContinue | ForEach-Object {
+    Copy-Item $_.FullName (Join-Path $veri $_.Name) -Force
+}
+# Bu calismada uretilen gun dosyalarini depoya geri yaz (is akisi main'e commit eder).
+Get-ChildItem $veri -Filter 'gun-*.json' -ErrorAction SilentlyContinue | ForEach-Object {
+    Copy-Item $_.FullName (Join-Path $yerelVeri $_.Name) -Force
 }
 
 # --- bugunun kosulari: analiz + eksik istatistik ---
@@ -237,22 +254,27 @@ foreach ($f in @('turler.html', 'jokeyler.html', 'sw.js', 'manifest.webmanifest'
 # Statik API koprusu: /api/... isteklerini veri/*.json dosyalarina cevirir
 $shim = @'
 <script>
-(function(){var GL=__GUNLER__;var of=window.fetch;window.fetch=function(u,o){try{if(typeof u==='string'&&u.indexOf('/api/')===0){var q=new URL(u,location.href),p=q.pathname;
+(function(){var GL=__GUNLER__;var GYD=__YGUNLER__;window.__GL__=GL;window.__GYD__=GYD;var of=window.fetch;window.fetch=function(u,o){try{if(typeof u==='string'&&u.indexOf('/api/')===0){var q=new URL(u,location.href),p=q.pathname;
 if(p==='/api/gun'){var tt=q.searchParams.get('tarih')||'',yd=q.searchParams.get('yabanci')==='1',is='';if(/^\d{4}-\d{2}-\d{2}$/.test(tt))is=tt.replace(/-/g,'');else if(/^\d{2}\/\d{2}\/\d{4}$/.test(tt)){var aa=tt.split('/');is=aa[2]+aa[1]+aa[0];}
- if(yd)u='veri/gun-yabanci.json?t='+Date.now();
+ if(yd){if(is&&GYD.indexOf(is)>=0)u='veri/gun-'+is+'-yd.json?t='+Date.now();else if(!is)u='veri/gun-yabanci.json?t='+Date.now();else u='veri/gun-yd-yok.json';}
  else if(is){var d='veri/gun-'+is+'.json?t='+Date.now(),fb='veri/gun.json?t='+Date.now();if(GL.indexOf(is)>=0)u=d;else return of(d,o).then(function(r){return r.ok?r:of(fb,o);});}
  else u='veri/gun.json?t='+Date.now();}
 else if(p==='/api/turler')u='veri/turler.json';
 else if(p==='/api/sehirler')u='veri/sehirler.json';
 else if(p==='/api/jokeyler'){var s=q.searchParams.get('sehir')||'-1',y=q.searchParams.get('yil')||new Date().getFullYear();u='veri/jokey-'+s+'-'+y+'.json';}
-else if(p==='/api/istatistik'){var t=(q.searchParams.get('tip')||'').split('/')[0].trim(),n=q.searchParams.get('n')||'50',se=q.searchParams.get('sehir')||'-1';u='veri/istatistik-'+(t+'||'+n+'|'+se).replace(/[^A-Za-z0-9]+/g,'_')+'.json';}
+else if(p==='/api/istatistik'){var t=(q.searchParams.get('tip')||'').split('/')[0].trim(),g=q.searchParams.get('grup')||'',n=q.searchParams.get('n')||'50',se=q.searchParams.get('sehir')||'-1',me=q.searchParams.get('mesafe')||'',ci=q.searchParams.get('cins')||'';u='veri/istatistik-'+(t+'|'+g+'|'+n+'|'+se+'|'+me+'|'+ci).replace(/[^A-Za-z0-9]+/g,'_')+'.json';}
 else if(p==='/api/analiz'){var k=(q.searchParams.get('kosu')||'').replace(/[^A-Za-z0-9_-]/g,'_');u='veri/analiz-'+k+'.json';}
 }}catch(e){}return of(u,o);};})();
 </script>
 '@
 # Yayinlanan gunlerin ISO listesi (gun dosyalari): ["20261123","20261122"]
 $gunJson = '["' + (@($gunIsoList) -join '","') + '"]'
+$gydList = @(Get-ChildItem $veri -Filter 'gun-*-yd.json' -ErrorAction SilentlyContinue | ForEach-Object {
+    ($_.BaseName -replace '^gun-', '' -replace '-yd$', '')
+})
+$gydJson = '["' + (@($gydList) -join '","') + '"]'
 $shim = $shim.Replace('__GUNLER__', $gunJson)
+$shim = $shim.Replace('__YGUNLER__', $gydJson)
 
 function Add-Shim([string]$path) {
     if (-not (Test-Path $path)) { return }

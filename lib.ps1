@@ -443,10 +443,11 @@ function Build-RaceAnalysis([string]$tarih, [string]$kosu, [string]$sehirId, [st
     }
 }
 
-function Send-File($stream, [string]$path, [string]$ctype) {
+function Send-File($stream, [string]$path, [string]$ctype, [int]$maxAge = 86400) {
     if (-not (Test-Path $path)) { Send-Response $stream 404 'text/plain' 'bulunamadi'; return }
     $bytes = [System.IO.File]::ReadAllBytes($path)
-    $header = "HTTP/1.1 200 OK`r`nContent-Type: $ctype`r`nContent-Length: $($bytes.Length)`r`nConnection: close`r`nCache-Control: public, max-age=86400`r`n`r`n"
+    $cc = if ($maxAge -le 0) { 'no-cache' } else { "public, max-age=$maxAge" }
+    $header = "HTTP/1.1 200 OK`r`nContent-Type: $ctype`r`nContent-Length: $($bytes.Length)`r`nConnection: close`r`nCache-Control: $cc`r`n`r`n"
     $hb = [System.Text.Encoding]::ASCII.GetBytes($header)
     $stream.Write($hb, 0, $hb.Length)
     $stream.Write($bytes, 0, $bytes.Length)
@@ -505,9 +506,11 @@ function Handle-Client($client, $config) {
         } elseif ($path -eq '/saglik') {
             Send-Response $stream 200 'text/plain' 'ok'
         } elseif ($path -eq '/manifest.webmanifest') {
-            Send-File $stream (Join-Path $script:Root 'manifest.webmanifest') 'application/manifest+json'
+            Send-File $stream (Join-Path $script:Root 'manifest.webmanifest') 'application/manifest+json' 0
         } elseif ($path -eq '/sw.js') {
-            Send-File $stream (Join-Path $script:Root 'sw.js') 'application/javascript'
+            Send-File $stream (Join-Path $script:Root 'sw.js') 'application/javascript' 0
+        } elseif ($path -eq '/logo.png') {
+            Send-File $stream (Join-Path $script:Root 'logo.png') 'image/png' 3600
         } elseif ($path -match '^/icons/icon-\d+\.png$') {
             Send-File $stream (Join-Path (Join-Path $script:Root 'icons') (Split-Path $path -Leaf)) 'image/png'
         } elseif ($path -eq '/' -or $path -eq '/index.html') {
@@ -636,11 +639,11 @@ function Handle-Client($client, $config) {
             }
             Send-Response $stream 200 'application/json' (To-JsonSafe ([pscustomobject]@{ Sehirler = $liste }))
         } elseif ($path -eq '/turler') {
-            Send-File $stream (Join-Path $script:Root 'turler.html') 'text/html; charset=utf-8'
+            Send-File $stream (Join-Path $script:Root 'turler.html') 'text/html; charset=utf-8' 0
         } elseif ($path -eq '/jokeyler' -or $path -eq '/jokeyler.html') {
-            Send-File $stream (Join-Path $script:Root 'jokeyler.html') 'text/html; charset=utf-8'
+            Send-File $stream (Join-Path $script:Root 'jokeyler.html') 'text/html; charset=utf-8' 0
         } elseif ($path -eq '/turler.html') {
-            Send-File $stream (Join-Path $script:Root 'turler.html') 'text/html; charset=utf-8'
+            Send-File $stream (Join-Path $script:Root 'turler.html') 'text/html; charset=utf-8' 0
         } elseif ($path -eq '/tam') {
             $tarih = Resolve-Tarih $params['tarih']
             $hizli = ($params['hizli'] -eq '1')

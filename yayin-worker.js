@@ -6,8 +6,8 @@ function json(o, status) {
     headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' }
   });
 }
-function slug(tip, n, sehir) {
-  return ('istatistik-' + (tip + '||' + n + '|' + sehir).replace(/[^A-Za-z0-9]+/g, '_'));
+function slug(tip, grup, n, sehir, mesafe, cins) {
+  return ('istatistik-' + (tip + '|' + grup + '|' + n + '|' + sehir + '|' + mesafe + '|' + cins).replace(/[^A-Za-z0-9]+/g, '_'));
 }
 export default {
   async fetch(request, env) {
@@ -36,9 +36,12 @@ export default {
     }
     if (p === '/api/istatistik') {
       const tip = ((url.searchParams.get('tip') || '').split('/')[0]).trim();
+      const grup = url.searchParams.get('grup') || '';
       const n = url.searchParams.get('n') || '50';
       const sehir = url.searchParams.get('sehir') || '-1';
-      const r = await get('/veri/' + slug(tip, n, sehir) + '.json');
+      const mesafe = url.searchParams.get('mesafe') || '';
+      const cins = url.searchParams.get('cins') || '';
+      const r = await get('/veri/' + slug(tip, grup, n, sehir, mesafe, cins) + '.json');
       if (r.ok) return r;
       return json({ Hazirlaniyor: true, Tip: tip, KosuSayisi: 0, Mesaj: 'İstatistik hazırlanıyor; birkaç dakika içinde otomatik gelecek.' });
     }

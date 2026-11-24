@@ -7,8 +7,8 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Naim Baba Yarış Analizi">
-<link rel="manifest" href="/manifest.webmanifest">
-<link rel="apple-touch-icon" href="/icons/icon-180.png">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
 <title>Naim Baba Yarış Analizi — TJK</title>
 <style>
   :root{
@@ -59,6 +59,10 @@ aside::-webkit-scrollbar-thumb{background:#9aa7b4;border-radius:5px;border:1px s
   .side-h{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
   .side-h h3{margin:0;font-size:13px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
   .themetog{border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:8px;padding:5px 9px;cursor:pointer;font-size:12px}
+  #jkDetay summary{list-style:none;cursor:pointer;display:flex;align-items:center;justify-content:space-between}
+  #jkDetay summary::-webkit-details-marker{display:none}
+  #jkDetay summary::after{content:'▾';color:var(--muted);font-size:13px}
+  #jkDetay[open] summary::after{content:'▴'}
   .section-label{font-size:11.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin:14px 0 7px;font-weight:700}
   .cityhead{font-size:16px;margin:18px 2px 6px;padding-bottom:6px;border-bottom:1px solid var(--line)}
   .cities{display:flex;flex-wrap:wrap;gap:7px}
@@ -70,12 +74,12 @@ aside::-webkit-scrollbar-thumb{background:#9aa7b4;border-radius:5px;border:1px s
   .race{background:var(--card);border:1px solid var(--line);border-radius:14px;margin:14px 0;overflow:hidden;scroll-margin-top:80px}
   .at-mini{display:none}
   @media (max-width:700px){
-    .at-mini{display:block;margin-top:2px;font-size:11px;color:var(--mut);max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer}
+    .at-mini{display:block;margin-top:2px;font-size:11px;color:var(--muted);max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer}
     .at-mini.acik{white-space:normal}
   }
   details.pmes summary{cursor:pointer;list-style:none;display:flex;align-items:center;justify-content:space-between}
   details.pmes summary::-webkit-details-marker{display:none}
-  details.pmes summary::after{content:'▾';color:var(--mut);font-size:13px;padding-right:2px}
+  details.pmes summary::after{content:'▾';color:var(--muted);font-size:13px;padding-right:2px}
   details.pmes[open] summary::after{content:'▴'}
   details.pmes summary h4{margin:0}
   .jokey-hit{color:#3ecf8e;font-weight:700}
@@ -150,6 +154,11 @@ aside::-webkit-scrollbar-thumb{background:#9aa7b4;border-radius:5px;border:1px s
   .citybar::-webkit-scrollbar-thumb{background:#9aa7b4;border-radius:5px;border:1px solid #222a33}
   .citybar::-webkit-scrollbar-thumb:hover{background:#c3ccd6}
   .citybar .citybtn{white-space:nowrap;flex:0 0 auto}
+  .racechips{display:flex;gap:6px;overflow-x:auto;padding:2px 0 8px;scrollbar-width:thin;-webkit-overflow-scrolling:touch}
+  .racechips .racechip{width:auto;flex:0 0 auto;margin:0;white-space:nowrap;padding:6px 10px}
+  .racechips::-webkit-scrollbar{height:8px}
+  .racechips::-webkit-scrollbar-track{background:#222a33;border-radius:5px}
+  .racechips::-webkit-scrollbar-thumb{background:#9aa7b4;border-radius:5px}
   .citybtn.yd{color:var(--muted)}
   .turstat{margin:10px 0 4px;border:1px solid var(--line);border-radius:12px;padding:12px;background:var(--card)}
   .turstat table{width:100%;border-collapse:collapse;font-size:12px}
@@ -158,10 +167,12 @@ aside::-webkit-scrollbar-thumb{background:#9aa7b4;border-radius:5px;border:1px s
   .mchip{display:inline-block;font-size:12px;color:var(--muted);margin-right:8px}
   @media(max-width:980px){
     .layout{grid-template-columns:1fr}
-    aside{position:static;max-height:65vh;order:-1}
+    aside{position:static;max-height:none;order:-1;margin:2px 0 8px}
     .hide-s{display:none}
   }
   @media(max-width:640px){
+    .datenav button,.datenav .dtlbl,.themetog,.citybtn,.racechip{min-height:40px}
+    .cscroll{width:40px;height:40px}
     th,td{padding:6px 5px}
     .datenav .dtlbl{min-width:118px;font-size:12.5px}
     .datenav button{padding:6px 9px}
@@ -204,14 +215,17 @@ aside::-webkit-scrollbar-thumb{background:#9aa7b4;border-radius:5px;border:1px s
       <div class="citybar" id="citybar"></div>
       <button class="cscroll" type="button" onclick="cityKaydir(1)" aria-label="sonraki hipodrom">›</button>
     </div>
+    <div class="racechips" id="racechips"></div>
   </div>
 </div></header>
 
 <div class="layout">
   <main id="app"></main>
   <aside id="side">
-    <div class="section-label" id="jk-title">Jokey sıralaması</div>
-    <div id="sidejockey"></div>
+    <details id="jkDetay" open>
+      <summary class="section-label" id="jk-title">Jokey sıralaması</summary>
+      <div id="sidejockey"></div>
+    </details>
   </aside>
 </div>
 
@@ -240,12 +254,32 @@ const esc = s => String(s==null?'':s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':
 const VLABEL = {KUM:'Kumcu', CIM:'Çimci', DENGELI:'Dengeli', YOK:'—'};
 const VCLS = {KUM:'b-kum', CIM:'b-cim', DENGELI:'b-dengeli', YOK:'b-yok'};
 
-function toggleTheme(){
-  const el = document.documentElement;
-  const next = el.dataset.theme === 'dark' ? 'light' : 'dark';
-  el.dataset.theme = next;
-  document.getElementById('themetog').textContent = next === 'dark' ? 'Açık tema' : 'Koyu tema';
+function temaUygula(t, kaydet){
+  t = (t === 'light') ? 'light' : 'dark';
+  document.documentElement.dataset.theme = t;
+  try {
+    var mt = document.querySelector('meta[name="theme-color"]');
+    if (mt) mt.setAttribute('content', t === 'light' ? '#f5f7fb' : '#0f1115');
+    if (kaydet) localStorage.setItem('at-tema', t);
+  } catch(e){}
+  var btn = document.getElementById('themetog');
+  if (btn) btn.textContent = t === 'dark' ? 'Açık tema' : 'Koyu tema';
 }
+function toggleTheme(){
+  temaUygula(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark', true);
+}
+(function(){
+  var t = '';
+  try { t = localStorage.getItem('at-tema') || ''; } catch(e){}
+  if (!t && window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) t = 'light';
+  temaUygula(t || 'dark', false);
+  try {
+    if (window.innerWidth <= 980) {
+      var jd = document.getElementById('jkDetay');
+      if (jd) jd.removeAttribute('open');
+    }
+  } catch(e){}
+})();
 
 function isPast(tarih){
   const p = tarih.split('/'); if (p.length !== 3) return false;
@@ -284,14 +318,22 @@ function ensureBanner(){
   if(!b){ b=document.createElement('div'); b.id='loadbanner'; b.className='loadbanner'; document.body.appendChild(b); }
   b.className='loadbanner'; b.style.display='block'; return b;
 }
-function hideBanner(){ const b=document.getElementById('loadbanner'); if(b) b.style.display='none'; }
-function showError(msg, iso){
-  const b=ensureBanner(); b.className='errorbar';
+let bannerTimer = null;
+function hideBanner(){
+  const b=document.getElementById('loadbanner'); if(b) b.style.display='none';
+  if (bannerTimer) { clearTimeout(bannerTimer); bannerTimer=null; }
+}
+function showError(msg, iso, sessiz){
+  const b=ensureBanner();
+  b.className = sessiz ? 'loadbanner' : 'errorbar';
   let extra='';
   if (lastGoodIso) { extra=' <button onclick="loadDate(\''+lastGoodIso+'\')">Son veriye dön</button>'; }
-  b.innerHTML=esc(msg)+' <button onclick="loadDate(\''+iso+'\')">Tekrar dene</button>'+extra;
+  b.innerHTML=esc(msg)+' <button onclick="loadDate(\''+iso+'\')">Tekrar dene</button>'+extra+' <button aria-label="Kapat" onclick="hideBanner()">✕</button>';
+  if (bannerTimer) clearTimeout(bannerTimer);
+  bannerTimer=setTimeout(hideBanner, sessiz ? 5000 : 12000);
 }
-function loadDate(iso, push, yabanciOverride){
+let istenenIso = '';
+function loadDate(iso, push, yabanciOverride, sessiz){
   if (location.protocol === 'file:') { alert('Tarih değiştirmek için uygulamayı calistir.bat ile (sunucu modunda) açın.'); return; }
   const qs = new URLSearchParams(location.search);
   const hizli = qs.get('hizli') !== '0';
@@ -299,19 +341,22 @@ function loadDate(iso, push, yabanciOverride){
   const bugunIso = isoOf(new Date());
   const gelecek = iso > bugunIso;          // yarın/sonrası: TJK programı henüz yok
   const seq = ++loadSeq;                   // her istek kendi numarasını alır
+  istenenIso = iso;
   const b = ensureBanner();
   b.className='loadbanner';
   b.innerHTML='Yükleniyor… '+esc(iso)+' <button onclick="loadDate(\''+prevIso(iso)+'\')">‹ Önceki gün</button> <button onclick="loadDate(\''+bugunIso+'\')">Bugüne dön</button>';
   if (currentAbort) { try { currentAbort.abort(); } catch(e){} }
-  currentAbort = window.AbortController ? new AbortController() : null;
-  const opts = currentAbort ? { signal: currentAbort.signal } : {};
-  const to = setTimeout(function(){ if (currentAbort) { try { currentAbort.abort(); } catch(e){} } }, 100000);
+  const ctl = window.AbortController ? new AbortController() : null;
+  currentAbort = ctl;
+  const opts = ctl ? { signal: ctl.signal } : {};
+  const to = setTimeout(function(){ if (ctl) { try { ctl.abort(); } catch(e){} } }, 100000);
   fetch('/api/gun?tarih=' + encodeURIComponent(iso) + '&hizli=' + (hizli?'1':'0') + (yabanci?'&yabanci=1':''), opts)
     .then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); })
     .then(function(p){
-      if (seq !== loadSeq) return;          // daha yeni bir istek başladı: bunun sonucu yok sayılır
       clearTimeout(to);
+      if (seq !== loadSeq) return;          // daha yeni bir istek başladı: bunun sonucu yok sayılır
       DATA=p; initFromData(); render(); hideBanner();
+      try { window.scrollTo(0,0); } catch(e){}
       lastGoodIso = p.TarihISO || iso;
       const geldiIso = p.TarihISO || isoFromTR(p.Tarih || '');
       if (!gelecek && iso && geldiIso && geldiIso !== iso) {
@@ -330,11 +375,11 @@ function loadDate(iso, push, yabanciOverride){
         setTimeout(function(){ if(seq === loadSeq) hideBanner(); }, 4500);
         return;
       }
-      if (push !== false) { try { history.pushState({tarih:iso}, '', '/?tarih='+encodeURIComponent(iso)+(hizli?'&hizli=1':'')+(yabanci?'&yabanci=1':'')); } catch(e){} }
+      if (push !== false) { try { history.pushState({tarih:iso}, '', '?tarih='+encodeURIComponent(iso)+(hizli?'&hizli=1':'')+(yabanci?'&yabanci=1':'')); } catch(e){} }
     })
     .catch(function(e){
-      if (seq !== loadSeq) return;          // iptal edilen eski istek: kırmızı uyarı verme
       clearTimeout(to);
+      if (seq !== loadSeq) return;          // iptal edilen eski istek: kırmızı uyarı verme
       if (gelecek) {
         // Gelecek gün verisi yoksa (404/503) kırmızı hata değil, bilgi göster.
         const bb = ensureBanner();
@@ -345,7 +390,7 @@ function loadDate(iso, push, yabanciOverride){
       }
       const msg = (e && e.name === 'AbortError') ? 'zaman aşımı' : ((e && e.message) ? e.message : 'hata');
       const shown = (DATA && DATA.Tarih) ? DATA.Tarih : '';
-      showError(isoToTR(iso) + ' yüklenemedi (' + msg + ').' + (shown ? ' Şu an ' + shown + ' gösteriliyor.' : ''), iso);
+      showError(isoToTR(iso) + ' yüklenemedi (' + msg + ').' + (shown ? ' Şu an ' + shown + ' gösteriliyor.' : ''), iso, !!sessiz);
     });
 }
 function navToDate(iso){ loadDate(iso); }
@@ -459,15 +504,17 @@ function renderDateNav(){
   if(!el) return;
   el.innerHTML = '';
   const iso = DATA.TarihISO || isoFromTR(DATA.Tarih);
-  const p = iso.split('-').map(Number);
+  // İstenen gün yayında değilse (son veri gösteriliyorsa) oklar istenen günden ilerlesin.
+  const base = (istenenIso && istenenIso !== iso) ? istenenIso : iso;
+  const p = base.split('-').map(Number);
   const mk=(txt,fn,cls)=>{ const b=document.createElement('button'); b.textContent=txt; if(cls) b.className=cls; b.onclick=fn; return b; };
   if(!p[0] || !p[1] || !p[2]){ el.appendChild(mk(DATA.Tarih||'—',()=>{})); return; }
   el.appendChild(mk('‹',()=>navToDate(isoOf(new Date(p[0],p[1]-1,p[2]-1)))));
   const lbl=document.createElement('button'); lbl.className='dtlbl';
   lbl.textContent=`${DATA.Tarih}${gunAdi(DATA.Tarih)}`; lbl.title='Tarih seç'; el.appendChild(lbl);
   el.appendChild(mk('›',()=>navToDate(isoOf(new Date(p[0],p[1]-1,p[2]+1)))));
-  if(iso!==isoOf(new Date())) el.appendChild(mk('Bugün',()=>navToDate(isoOf(new Date())),'mini'));
-  const inp=document.createElement('input'); inp.type='date'; inp.className='dthide'; inp.value=iso;
+  if(base!==isoOf(new Date())) el.appendChild(mk('Bugün',()=>navToDate(isoOf(new Date())),'mini'));
+  const inp=document.createElement('input'); inp.type='date'; inp.className='dthide'; inp.value=base;
   inp.onchange=()=>navToDate(inp.value); el.appendChild(inp);
   lbl.onclick=()=>{ try{ if(inp.showPicker) inp.showPicker(); else inp.click(); }catch(e){ inp.click(); } };
 }
@@ -501,6 +548,10 @@ function renderScope(){
   const el=document.getElementById('citybar'); if(!el) return;
   const y = new URLSearchParams(location.search).get('yabanci')==='1';
   const iso = DATA.TarihISO || isoFromTR(DATA.Tarih);
+  // Statik yayında o gün için yurt dışı dosyası yoksa düğmeyi gösterme (yanlış gün göstermesin).
+  const gyd = window.__GYD__ || [];
+  const is8 = String(iso || '').replace(/-/g, '');
+  if (!y && gyd.length && is8 && gyd.indexOf(is8) < 0) return;
   const b=document.createElement('button');
   b.className='citybtn yd'+(y?' active':'');
   b.textContent=y?'Yurt dışı kapat':'+ Yurt dışı';
@@ -699,7 +750,7 @@ function renderSideJockey(){
     if(JK_CACHE[key]){ paint(JK_CACHE[key]); return; }
     box.innerHTML=`<div class="small">${esc(kisaYer(city.Ad))} jokey tablosu yükleniyor…</div>`;
     fetch('/api/jokeyler?sehir='+encodeURIComponent(city.SehirId)+'&yil='+encodeURIComponent(DONEM)+'&_='+Date.now(), { cache:'no-store' })
-      .then(r=>r.json())
+      .then(r=>{ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); })
       .then(d=>{ JK_CACHE[key]=d.Jokeyler||[]; paint(JK_CACHE[key]); })
       .catch(()=>{ box.innerHTML=`<div class="small">${esc(kisaYer(city.Ad))}: jokey tablosu alınamadı. <a href="#" onclick="renderSideJockey();return false">Tekrar dene</a></div>`; });
   });
@@ -901,6 +952,7 @@ function panelVerdict(race){
 }
 
 const TUR_CACHE={}, TUR_STATE={};
+let TUR_SEQ=0;
 function turOzet(s, sehir, sadi, n){
   const yer = (sehir && sehir!=='-1') ? (sadi||'Hipodrom') : 'Tüm Türkiye';
   const ks=(s.Kosular||[]);
@@ -944,10 +996,12 @@ async function turIstatistik(id, tip, sehirId, sadi, opt, grup){
   const body=document.getElementById(id+'tb');
   const key=(tip||'')+'|'+(grup||'')+'|'+st.sehir+'|'+st.n;
   if(TUR_CACHE[key]){ body.innerHTML=TUR_CACHE[key]; return; }
+  const turSeq=++TUR_SEQ;
   try{
     const r=await fetch('/api/istatistik?tip='+encodeURIComponent(tip||'')+'&grup='+encodeURIComponent(grup||'')+'&n='+st.n+'&sehir='+encodeURIComponent(st.sehir));
     if(!r.ok) throw new Error('HTTP '+r.status);
     const s=await r.json();
+    if(turSeq!==TUR_SEQ) return;
     if(s.Hazirlaniyor){ body.innerHTML='<div class="small mut">İstatistik hazırlanıyor (TJK geçmişi taranıyor)… birkaç dakika içinde kendiliğinden dolacak.</div>'; setTimeout(function(){ turIstatistik(id,tip,sehirId,sadi,{sehir:st.sehir,n:st.n},grup); }, 8000); return; }
     if(s.Hata) throw new Error(s.Hata);
     TUR_CACHE[key]=turOzet(s, st.sehir, sadi, st.n); body.innerHTML=TUR_CACHE[key];
@@ -958,9 +1012,10 @@ async function turIstatistik(id, tip, sehirId, sadi, opt, grup){
 function raceCard(race, idx){
   const id='r'+idx;
   const pistCls=race.Pist==='Çim'?'cim':(race.Pist==='Kum'?'kum':'');
-  const done = isPast(currentDay().Tarih);
+  const siraVar = h => { const v=(h.Sira!=null?h.Sira:h.Sonuc); return v!=null && /^\d+$/.test(String(v).trim()); };
+  const done = isPast(currentDay().Tarih) || (race.Atlar||[]).some(siraVar);
   const ilk4 = done ? (race.Atlar||[])
-      .filter(h=>{ const v=(h.Sira!=null?h.Sira:h.Sonuc); return v!=null && /^\d+$/.test(String(v).trim()); })
+      .filter(siraVar)
       .sort((a,b)=>parseInt(a.Sira!=null?a.Sira:a.Sonuc,10)-parseInt(b.Sira!=null?b.Sira:b.Sonuc,10))
       .slice(0,4) : [];
   const hasAnalysis = race.__detay || (race.JokeySira && race.JokeySira.length) || (race.IkiliGecme && race.IkiliGecme.Liste && race.IkiliGecme.Liste.length) || (race.Yuzey && Object.keys(race.Yuzey).length);
@@ -984,7 +1039,7 @@ function raceCard(race, idx){
       ${ilk4.length?`<span class="chip top4">${ilk4.map((h,i)=>`${i+1}. ${esc(h.At)}`).join(' · ')}</span>`:''}
       <span class="spacer"></span><span class="toggle">aç/kapat ▾</span>
     </div>
-    <div class="race-b" id="${id}b">
+    <div class="race-b" id="${id}b"${(window.innerWidth<=700 && idx>0) ? ' style="display:none"' : ''}>
       <div id="${id}t" class="turstat" style="display:none"></div>
       ${panelProgram(race)}
       ${panelVerdict(race)}
@@ -1078,13 +1133,24 @@ if (DATA.__api__) {
     const mevcut = DATA.TarihISO || isoFromTR(DATA.Tarih || '');
     const bugun = isoOf(new Date());
     const pwa = (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || navigator.standalone;
-    // Tarayıcıda açıkça seçilen tarihe dokunma; PWA eski tarihle açıldıysa bugüne dön.
-    if (mevcut && mevcut !== bugun && location.protocol !== 'file:' && (!urlTarih || (pwa && urlTarih < bugun))) {
-      setTimeout(function(){ loadDate(bugun, false); }, 250);
+    // Paylaşılan/derin tarih bağlantısı: gömülü veri başka gün olsa da istenen günü yükle.
+    if (urlTarih && mevcut && urlTarih !== mevcut && location.protocol !== 'file:') {
+      setTimeout(function(){ loadDate(urlTarih, false, undefined, true); }, 250);
+    } else if (mevcut && mevcut !== bugun && location.protocol !== 'file:' && (!urlTarih || (pwa && urlTarih < bugun))) {
+      setTimeout(function(){ loadDate(bugun, false, undefined, true); }, 250);
     }
   } catch(e){}
 }
-if ('serviceWorker' in navigator && location.protocol !== 'file:') { navigator.serviceWorker.register('/sw.js').catch(function(){}); }
+if ('serviceWorker' in navigator && location.protocol !== 'file:') { navigator.serviceWorker.register('sw.js').catch(function(){}); }
+/* Gece yarısı devri: uygulama açık kalırsa ertesi gün otomatik bugüne dön. */
+document.addEventListener('visibilitychange', function(){
+  if (document.hidden || location.protocol === 'file:') return;
+  const qs = new URLSearchParams(location.search);
+  if (qs.get('tarih')) return;                       // kullanıcı bilinçli tarih seçmiş
+  const goster = DATA && (DATA.TarihISO || isoFromTR(DATA.Tarih || ''));
+  const bugun = isoOf(new Date());
+  if (goster && goster !== bugun) loadDate(bugun, false, undefined, true);
+});
 </script>
 <script>
 /* Logo alani: tikla -> resim sec (localStorage), sag tik -> kaldir.
