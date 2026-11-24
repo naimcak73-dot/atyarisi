@@ -29,7 +29,7 @@ jobs:
         run: |
           git config user.name "atyarisi-bot"
           git config user.email "bot@users.noreply.github.com"
-          git add veri/istatistik-*.json veri/analiz-*.json
+          git add veri/istatistik-*.json veri/analiz-*.json veri/gun-*.json)
           if (-not (git diff --cached --quiet)) {
             git commit -m "kutuphane guncellendi"
             git pull --rebase -X theirs
