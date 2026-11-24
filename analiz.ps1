@@ -235,8 +235,14 @@ function Get-Races([string]$html, [int]$sehirId, [string]$sehirAdi) {
             }
             $formRaw = M1 $r 'Son6Yaris[^>]*>(.*?)</td>'
             $form = if ($formRaw) { (Strip-Tags $formRaw) -replace '\s','' } else { '' }
-            $drc = M1 $r 'GunlukYarisProgrami-DERECE[^>]*>(?:(?!</td>).)*?<span[^>]*>\s*([\d\.:]+)\s*</span>'
-            if (-not $drc) { $drc = Strip-Tags (M1 $r 'GunlukYarisProgrami-DERECE[^>]*>(.*?)</td>') }
+            $drcCell = M1 $r 'GunlukYarisProgrami-DERECE[^>]*>(.*?)</td>'
+            $drc = ''
+            if ($drcCell) {
+                # Hucresinde "1.15.10" + uzun aciklama (hipodrom/tarih) var; yalniz dereceyi al.
+                $drcTxt = Strip-Tags $drcCell
+                $dm = [regex]::Match($drcTxt, '^\s*(\d{1,3}[.:]\d{2}(?:[.:]\d{2})?)')
+                if ($dm.Success) { $drc = $dm.Groups[1].Value }
+            }
 
             $yasTxt = Strip-Tags (M1 $r 'GunlukYarisProgrami-Yas[^>]*>\s*([^<]*)<')
             $yasNum = $null
@@ -1262,6 +1268,7 @@ function Build-DayData([string]$TarihStr, $queryOptions, $winsCache, $histCache,
         # Ganyan + bitiş sırası: yalnız bugün/geçmiş günler için sonuç sayfasından.
         # Gelecek gün (yarın) için istek atılmaz; cache'li çağrı saatlik yayında yükü sınırlar.
         $dayRes = @{}
+        $gan = @{}
         $tarihDate = $null
         try { $tarihDate = [datetime]::ParseExact($TarihStr,'dd/MM/yyyy',$script:CIV).Date } catch {}
         if ($tarihDate -and $tarihDate -le (Get-Date).Date) {
@@ -1269,7 +1276,19 @@ function Build-DayData([string]$TarihStr, $queryOptions, $winsCache, $histCache,
                 $resUrl = "$script:Base/TR/YarisSever/Info/Sehir/GunlukYarisSonuclari?SehirId=$($city.SehirId)&QueryParameter_Tarih=" +
                     [uri]::EscapeDataString($TarihStr) + "&SehirAdi=" + [uri]::EscapeDataString($city.Ad)
                 $rh = Invoke-Tjk $resUrl -TimeoutSec 20 -Cat ('gunsonuc-' + $TarihStr + '-' + $city.SehirId)
-                if ($rh) { foreach ($b in @(Get-ResultBlocks $rh)) { $dayRes[[string]$b.KosuKodu] = @($b.Atlar) } }
+                if ($rh) {
+                    foreach ($b in @(Get-ResultBlocks $rh)) { $dayRes[[string]$b.KosuKodu] = @($b.Atlar) }
+                    # "6'LI GANYAN" gibi havuz tutarlari (sayfa altindaki ganyan ozeti)
+                    foreach ($gm in [regex]::Matches($rh, '(?is)<div[^>]*>\s*([^<]*GANYAN[^<]*)</div>\s*<div[^>]*>\s*([^<]+?)\s*</div>')) {
+                        $lab = (Html-Decode $gm.Groups[1].Value)
+                        $val = (Html-Decode $gm.Groups[2].Value)
+                        $num = M1 $val '([\d][\d\.,]*)'
+                        if (-not $num) { continue }
+                        if ($lab -match "6") { $gan['Altili'] = $num }
+                        elseif ($lab -match "7") { $gan['Yedili'] = $num }
+                        elseif ($lab -match "3") { $gan['Uclu'] = $num }
+                    }
+                }
             } catch {}
         }
         foreach ($race in $races) {
@@ -1346,7 +1365,7 @@ function Build-DayData([string]$TarihStr, $queryOptions, $winsCache, $histCache,
                 GenisYorum=$genis
             }
         }
-        $cityOut += [pscustomobject]@{ SehirId=$city.SehirId; Ad=$city.Ad; Yabanci=$city.Yabanci; JokeySira=$cityJockey; Kosular=$raceOut }
+        $cityOut += [pscustomobject]@{ SehirId=$city.SehirId; Ad=$city.Ad; Yabanci=$city.Yabanci; JokeySira=$cityJockey; Ganyanlar=$gan; Kosular=$raceOut }
     }
 
     if (-not $Hizli) { Save-SireStore $sireStore }

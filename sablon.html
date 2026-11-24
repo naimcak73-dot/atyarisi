@@ -92,6 +92,20 @@ aside::-webkit-scrollbar-thumb{background:#9aa7b4;border-radius:5px;border:1px s
   .jokeyfilter input{flex:1;min-width:200px;background:var(--card);color:var(--ink);border:1px solid var(--line);border-radius:9px;padding:8px 11px;font-size:13.5px}
   .jokeyfilter input:focus{outline:none;border-color:#3ecf8e}
   .chip.top4{background:#12211a;border-color:#2f6d4f;color:#cdebd8}
+  .sonucbar{display:flex;flex-wrap:wrap;align-items:center;gap:5px 14px;padding:7px 12px;
+    border-top:1px solid var(--line);background:rgba(47,191,113,.08);font-size:12.5px;cursor:pointer}
+  .sonucbar .sb-ad{font-size:10px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--good)}
+  .sonucbar .sb-at{white-space:nowrap}
+  .sonucbar .sb-at>b{color:var(--good)}
+  #gunSonucPanel{max-width:1400px;margin:12px auto 0;padding:12px 16px;border:1px solid var(--line);
+    border-radius:12px;background:var(--card,#171b22)}
+  #gunSonucPanel h3{font-size:12px;letter-spacing:.4px;text-transform:uppercase;color:var(--accent);margin:12px 0 6px}
+  #gunSonucPanel h3:first-of-type{margin-top:2px}
+  .ghdr{display:flex;justify-content:space-between;align-items:center;font-size:13px;font-weight:600}
+  .grow{padding:6px 0;border-bottom:1px dashed var(--line);font-size:12.5px;line-height:1.6}
+  .gat{display:flex;flex-wrap:wrap;gap:2px 14px;margin-top:3px}
+  .gat>span{white-space:nowrap}
+  .galt{margin:8px 0 2px;padding:7px 10px;border-radius:8px;background:rgba(47,191,113,.12);font-size:13px}
   .rank[data-j]{cursor:pointer;border-radius:6px;padding-left:4px}
   .rank[data-j]:hover{background:rgba(79,140,255,.10)}
   .rank.selj{background:rgba(62,207,142,.14);border-left:2px solid #3ecf8e}
@@ -116,7 +130,10 @@ aside::-webkit-scrollbar-thumb{background:#9aa7b4;border-radius:5px;border:1px s
   .small{color:var(--muted);font-size:12px}
   .mtime{font-family:var(--mono);font-size:11.5px;color:var(--ink);white-space:nowrap}
   .mdot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--good);vertical-align:1px;margin:0 1px}
-  .mdot.bad{background:var(--bad)}
+  .mdot.bad{background:var(--warn)}
+  .mcity{font-size:10px;font-weight:700;letter-spacing:.4px;vertical-align:1px}
+  .mcity.ok{color:var(--good)}
+  .mcity.bad{color:var(--warn)}
   .mtrk{font-size:10px;color:var(--muted);white-space:nowrap}
   .badge{display:inline-block;font-size:11px;padding:2px 7px;border-radius:7px;font-weight:600}
   .b-kum{background:rgba(138,90,43,.18);color:#c98a4b}
@@ -209,6 +226,7 @@ aside::-webkit-scrollbar-thumb{background:#9aa7b4;border-radius:5px;border:1px s
       <div style="display:flex;gap:8px;margin:2px 0 10px;flex-wrap:wrap">
         <a href="turler.html" style="padding:5px 10px;border:1px solid #2a3140;border-radius:8px;font-size:12.5px;color:inherit;text-decoration:none">Koşu türleri</a>
         <a href="jokeyler.html" style="padding:5px 10px;border:1px solid #2a3140;border-radius:8px;font-size:12.5px;color:inherit;text-decoration:none">Jokey başarısı</a>
+        <button id="gunSonucBtn" onclick="gunSonucCiz()" style="padding:5px 10px;border:1px solid #2a3140;border-radius:8px;font-size:12.5px;background:none;color:inherit;cursor:pointer">Günün sonuçları</button>
       </div>
     </div>
   </div>
@@ -222,6 +240,8 @@ aside::-webkit-scrollbar-thumb{background:#9aa7b4;border-radius:5px;border:1px s
     <div class="racechips" id="racechips"></div>
   </div>
 </div></header>
+
+<section id="gunSonucPanel" hidden></section>
 
 <div class="layout">
   <main id="app"></main>
@@ -803,10 +823,17 @@ function mesafeBadge(race, atId){
     const mm = t.match(/\d+[.:]\d{2}[.:]\d{2}/); if(mm) t = mm[0];
     const pist = x.SonPist==='Kum'?'kum':(x.SonPist==='Sentetik'?'snt':(x.SonPist==='Çim'?'çm':''));
     const same = !!x.AyniSehir;
+    /* Koşunun yapıldığı il: ilk üç harf (ANK, BUR, İST...); bu ilse yeşil, değilse sarı. */
+    const ilk = String(x.SonSehir||'').trim().split(/\s+/)[0];
+    let kod = '';
+    try { kod = ilk ? ilk.slice(0,3).toLocaleUpperCase('tr') : ''; } catch(e){ kod = ilk ? ilk.slice(0,3).toUpperCase() : ''; }
+    const yer = kod
+      ? `<span class="mcity ${same?'ok':'bad'}" title="${same?'Bu ilde':'Başka ilde'}${x.SonSehir?': '+esc(x.SonSehir):''}">${esc(kod)}</span>`
+      : `<span class="mdot ${same?'ok':'bad'}" title="${same?'Bu ilde':'Başka ilde'}"></span>`;
     const title = 'Bu mesafedeki son koşu'+(x.SonTarih?' ('+x.SonTarih+')':'')+': '+t+(x.SonSira!=null?' · '+x.SonSira+'.':'')+
-      (x.SonSehir?' · '+x.SonSehir:'')+(same?' (bu şehir)':' (başka şehir)')+
+      (x.SonSehir?' · '+x.SonSehir:'')+(same?' (bu il)':' (başka il)')+
       ' · '+x.Kosu+' koşu / '+x.Birinci+' birinci';
-    return `<span class="mtime" title="${esc(title)}">${esc(t)}</span> <span class="mdot ${same?'ok':'bad'}" title="${same?'Bu şehirde':'Başka şehirde'}"></span>${pist?' <span class="mtrk">'+pist+'</span>':''}`;
+    return `<span class="mtime" title="${esc(title)}">${esc(t)}</span> ${yer}${pist?' <span class="mtrk">'+pist+'</span>':''}`;
   }
   if(x.Kosu>0) return `<span class="${x.Birinci>0?'ok':'mut'}"><b>${x.Kosu}</b>/${x.Birinci}</span>`;
   if(x.YakinKosu>0) return `<span class="small">≈${x.YakinMesafe} · ${x.YakinKosu}/${x.YakinBirinci}</span>`;
@@ -830,6 +857,43 @@ function panelMesafe(race){
   return `<details class="panel pmes"><summary><h4>Mesafe karnesi — ${race.Mesafe} m</h4></summary>${rows}
     <div class="note">Kosu/birinci = bu mesafedeki geçmiş; "≈" en yakın (±100 m) mesafe. İlk kez koşuyorsa orijin öne çıkar.</div></details>`;
 }
+function gnyKisa(h){
+  if(!h || h.Gny==null || String(h.Gny).trim()==='') return '';
+  const n=Number(h.Gny);
+  return '<span class="mut">('+(Number.isFinite(n)?n.toFixed(2).replace('.',','):esc(h.Gny))+')</span>';
+}
+function gunSonucCiz(zorla){
+  const p=document.getElementById('gunSonucPanel'); if(!p) return;
+  if(!zorla){ p.hidden=!p.hidden; if(p.hidden) return; }
+  const d=currentDay()||{};
+  let h='';
+  (d.Sehirler||[]).forEach((c,ci)=>{
+    if(cityIdx>=0 && ci!==cityIdx) return;
+    const kos=cityKos(c);
+    let sat='';
+    kos.forEach(r=>{
+      const fin=(r.Atlar||[]).filter(x=>x.Sonuc!=null && /^\d+$/.test(String(x.Sonuc).trim()))
+        .sort((a,b)=>parseInt(a.Sonuc,10)-parseInt(b.Sonuc,10)).slice(0,4);
+      if(!fin.length) return;
+      sat += `<div class="grow"><b>${esc(r.KosuNo)}. Koşu</b> <span class="mut">${esc(r.Saat||'')}</span>`+
+        `<div class="gat">`+fin.map((x,i)=>`<span><b>${i+1}.</b> ${esc(x.At)} <span class="mut">${esc(x.Jokey||'')}</span> ${gnyKisa(x)}</span>`).join('')+`</div></div>`;
+    });
+    if(!sat) return;
+    h+=`<h3>${esc(kisaYer(c.Ad))}</h3>`+sat;
+    const g=c.Ganyanlar||{};
+    if(g.Altili||g.Uclu||g.Yedili){
+      h+=`<div class="galt">`+
+        (g.Altili?`6'lı Ganyan: <b>${esc(g.Altili)} ₺</b>`:'')+
+        (g.Uclu?` · 3'lü: <b>${esc(g.Uclu)} ₺</b>`:'')+
+        (g.Yedili?` · 7'li: <b>${esc(g.Yedili)} ₺</b>`:'')+`</div>`;
+    }
+  });
+  p.innerHTML = h
+    ? `<div class="ghdr"><span>Günün sonuçları — ${esc(d.Tarih||'')}</span><button onclick="gunSonucCiz()" style="background:none;border:0;color:inherit;cursor:pointer;font-size:16px" title="Kapat">✕</button></div>`+h
+    : `<div class="ghdr"><span>Günün sonuçları — ${esc(d.Tarih||'')}</span><button onclick="gunSonucCiz()" style="background:none;border:0;color:inherit;cursor:pointer;font-size:16px">✕</button></div><div class="small mut" style="padding:8px 0">Bu tarihte biten koşu sonucu yok.</div>`;
+}
+function cityKos(c){ return (c && c.Kosular) ? c.Kosular : []; }
+window.gunSonucCiz = gunSonucCiz;
 function horseTable(race){
   let rows='';
   const hasSonuc = (race.Atlar||[]).some(h=>h.Sonuc!=null);
@@ -1041,6 +1105,11 @@ function raceCard(race, idx){
       .filter(sonucVar)
       .sort((a,b)=>parseInt(a.Sonuc,10)-parseInt(b.Sonuc,10))
       .slice(0,4);
+  const gnyK = h => {
+    if(h.Gny==null || String(h.Gny).trim()==='') return '';
+    const n=Number(h.Gny);
+    return ' <span class="mut" style="font-weight:400">('+(Number.isFinite(n)?n.toFixed(2).replace('.',','):esc(h.Gny))+')</span>';
+  };
   const hasAnalysis = race.__detay || (race.JokeySira && race.JokeySira.length) || (race.IkiliGecme && race.IkiliGecme.Liste && race.IkiliGecme.Liste.length) || (race.Yuzey && Object.keys(race.Yuzey).length);
   const raceCls = 'race';
   const jkAra = (race.Atlar||[]).map(h=>{
@@ -1059,9 +1128,12 @@ function raceCard(race, idx){
       ${race.Pist?`<span class="chip pist ${pistCls}">${esc(race.Pist)}</span>`:''}
       ${race.Yorum&&race.Yorum.Seviye&&race.Yorum.Seviye!=='yok'?`<span class="chip">Sürpriz: ${race.Yorum.Seviye==='yuksek'?'Yüksek':(race.Yorum.Seviye==='dusuk'?'Düşük':'Orta')}</span>`:''}
       ${done?'<span class="chip done">bitti</span>':''}
-      ${ilk4.length?`<span class="chip top4">${ilk4.map((h,i)=>`${i+1}. ${esc(h.At)}`).join(' · ')}</span>`:''}
       <span class="spacer"></span><span class="toggle">aç/kapat ▾</span>
     </div>
+    ${ilk4.length?`<div class="sonucbar" onclick="toggleRace('${id}')" title="Günün biten koşusu — parantez içi ganyan">
+      <span class="sb-ad">Sonuç</span>
+      ${ilk4.map((h,i)=>`<span class="sb-at"><b>${i+1}.</b> ${esc(h.At)}${gnyK(h)}</span>`).join('')}
+    </div>`:''}
     <div class="race-b" id="${id}b"${(window.innerWidth<=700 && idx>0) ? ' style="display:none"' : ''}>
       <div id="${id}t" class="turstat" style="display:none"></div>
       ${panelProgram(race)}
@@ -1099,6 +1171,8 @@ window.addEventListener('load', fitHeader);
 function render(){
   renderSub(); renderDateNav(); renderCities(); renderScope(); renderRaceChips(); renderSideJockey();
   requestAnimationFrame(fitHeader);
+  const gsp=document.getElementById('gunSonucPanel');
+  if(gsp && !gsp.hidden) gunSonucCiz(true);
   const app=document.getElementById('app');
   const jb=jokeyBar();
   const jf=`<div class="jokeyfilter"><input id="jfAra" type="search" placeholder="Jokey yaz → koşular süzülür ve yeşil işaretlenir (M.S.ÇELİK / Mehmet Salih…)" value="${esc(JF_ARA)}" autocomplete="off"><span class="small" id="jfSayi"></span></div>`;

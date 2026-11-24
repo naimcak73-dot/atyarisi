@@ -75,11 +75,24 @@ function Read-PayloadCache([string]$cf, [string]$msg) {
 function Build-Payload([string]$tarih, [bool]$hizli) {
     $script:Hizli = [bool]$hizli
     $cf = Get-PayloadCacheFile $tarih $(if ($script:Yabanci) { '-yd' } else { '' })
-    # hizli yol + 5 dk'dan taze onbellek: aga hic cikmadan aninda ver
+    # hizli yol + 15 dk'dan taze onbellek: aga hic cikmadan aninda ver.
+    # ONEMLI: dosya zamani yetmez; depodan gelen gun-*.json her kosuda "yeni"
+    # gorunur. Icerikteki Uretim damgasi da taze olmali, yoksa eski veri doner.
     if ($hizli -and $cf -and (Test-Path $cf)) {
         try {
-            if (((Get-Date) - (Get-Item $cf).LastWriteTime).TotalMinutes -lt 15) {
-                $c = Read-PayloadCache $cf 'Önbellekten gösteriliyor (son 5 dk).'
+            $taze = ((Get-Date) - (Get-Item $cf).LastWriteTime).TotalMinutes -lt 15
+            if ($taze) {
+                $ham = [System.IO.File]::ReadAllText($cf, [System.Text.Encoding]::UTF8)
+                $um = [regex]::Match($ham, '"Uretim"\s*:\s*"(\d{2}\.\d{2}\.\d{4} \d{2}:\d{2})"')
+                if ($um.Success) {
+                    $ud = [datetime]::MinValue
+                    if ([datetime]::TryParseExact($um.Groups[1].Value, 'dd.MM.yyyy HH:mm', $script:CIV, 'None', [ref]$ud)) {
+                        $taze = (((Get-Date) - $ud).TotalMinutes -lt 15)
+                    }
+                }
+            }
+            if ($taze) {
+                $c = Read-PayloadCache $cf 'Önbellekten gösteriliyor (son 15 dk).'
                 if ($c) { return $c }
             }
         } catch {}
