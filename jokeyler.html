@@ -101,10 +101,10 @@ function yukle(){
     if(!o) return;
     VERI = o.Jokeyler || [];
     if(!VERI.length && String(SEHIR) !== '-1'){
-      // Yayin kopyasinda her hipodrom dosyasi olmayabilir: Tum Turkiye tablosuna dus
-      SEHIR = '-1'; cizIller();
-      el('durum').textContent = 'Bu hipodrom için ayrı tablo yok; Tüm Türkiye gösteriliyor…';
-      yukle(); return;
+      el('durum').style.display = 'block';
+      el('durum').textContent = 'Seçilen il için '+YIL+' jokey istatistiği yok. “Tüm Türkiye”ye basarak ülke genelini görebilirsin.';
+      el('tablo').style.display = 'none';
+      return;
     }
     if(!VERI.length){ el('durum').textContent = 'Bu seçim için jokey istatistiği yok.'; return; }
     el('durum').style.display = 'none'; el('tablo').style.display = 'block'; ciz();

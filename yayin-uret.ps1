@@ -158,6 +158,13 @@ if ($script:queryOptions) {
 if ($payload) {
     $sidler = @{}
     foreach ($d in @($payload.Tarihler)) { foreach ($c in @($d.Sehirler)) { if ($c.SehirId) { $sidler[[string]$c.SehirId] = $true } } }
+    # Jokey sayfasındaki il düğmeleri bugünkü hipodromlarla sınırlı kalmasın:
+    # sorgu seçeneklerindeki tüm iller için tablo üret (statik yayında da çalışsın).
+    if ($script:queryOptions -and $script:queryOptions.Sehir) {
+        foreach ($s in @($script:queryOptions.Sehir)) {
+            if ($s.Id -and [string]$s.Id -ne '-1') { $sidler[[string]$s.Id] = $true }
+        }
+    }
     foreach ($sid in $sidler.Keys) {
         $tab = @(Get-JockeyTable $sid $script:Donem)
         if (-not $tab.Count) { $tab = @(Get-JockeyTable $sid '-1') }
