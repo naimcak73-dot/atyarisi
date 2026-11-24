@@ -302,6 +302,7 @@ function Get-HorseHistory([string]$html) {
         $pistCell = Strip-Tags $tds[3].Groups[1].Value
         $pist = ''
         if ($pistCell -match '^\s*Ç' -or $pistCell -match '(?i)Çim') { $pist = 'Çim' }
+        elseif ($pistCell -match '(?i)sentet' -or $pistCell -match '^\s*S') { $pist = 'Sentetik' }
         elseif ($pistCell -match '^\s*K' -or $pistCell -match '(?i)Kum') { $pist = 'Kum' }
         $sira = Parse-Num (Strip-Tags $tds[4].Groups[1].Value)
         $out += [pscustomobject]@{
@@ -488,6 +489,22 @@ function Build-Surfaces($race, $histCache) {
     return $res
 }
 
+function Ensure-Histories($race, $histCache) {
+    # At gecmislerini (AtKosuBilgileri) onbellege doldur; hizli modda yalniz
+    # mesafe kaydi icin gerekli. Istek basarisiz olursa bos liste yazilir.
+    foreach ($h in @($race.Atlar)) {
+        if (-not $h.AtId) { continue }
+        if ($histCache.ContainsKey($h.AtId)) { continue }
+        $hist = @()
+        if (-not $UseCacheOnly) {
+            $u = "$script:Base/TR/YarisSever/Query/ConnectedPage/AtKosuBilgileri?1=1&QueryParameter_AtId=$($h.AtId)&Era=today"
+            $html = Invoke-Tjk $u -TimeoutSec 10 -Cat 'athist'
+            if ($html) { $hist = @(Get-HorseHistory $html) }
+        }
+        $histCache[$h.AtId] = $hist
+    }
+}
+
 function Build-Distance($race, $histCache) {
     # Kosunun mesafesine gore gecmis: tam mesafe + en yakin (+-100 m).
     $res = @{}
@@ -497,11 +514,25 @@ function Build-Distance($race, $histCache) {
     foreach ($h in $race.Atlar) {
         if (-not $h.AtId) { continue }
         $hist = if ($histCache.ContainsKey($h.AtId)) { $histCache[$h.AtId] } else { @() }
-        $runs = @($hist | Where-Object { $_.Mesafe -gt 0 -and $null -ne $_.Sira })
+        # Bugunku kosunun kendisi gecmiste gorunebilir; "daha once" icin disla.
+        $rk = [string]$race.KosuKodu
+        $runs = @($hist | Where-Object { $_.Mesafe -gt 0 -and $null -ne $_.Sira -and [string]$_.KosuKodu -ne $rk })
         $exact = @($runs | Where-Object { [int]$_.Mesafe -eq $target })
         $near = @($runs | Where-Object { [int]$_.Mesafe -ne $target -and [math]::Abs([int]$_.Mesafe - $target) -le 100 })
         $nearDist = $null
         if ($near.Count -gt 0) { $nearDist = ($near | Sort-Object { [math]::Abs([int]$_.Mesafe - $target) } | Select-Object -First 1).Mesafe }
+        # Bu mesafedeki en son koşu: bitiş derecesi + şehir + pist (UI'da kısa gösterim)
+        $son = $null
+        if ($exact.Count -gt 0) {
+            $son = @($exact | Sort-Object {
+                try { [datetime]::ParseExact([string]$_.Tarih, 'dd.MM.yyyy', $null) } catch { [datetime]::MinValue }
+            } -Descending) | Select-Object -First 1
+        }
+        $ayniSehir = $false
+        if ($son -and $son.Sehir -and $race.Sehir) {
+            $a = (Clean-Name ([string]$son.Sehir)); $b = (Clean-Name ([string]$race.Sehir))
+            $ayniSehir = ($a -eq $b) -or ($a -like "*$b*") -or ($b -like "*$a*")
+        }
         $res[$h.AtId] = [pscustomobject]@{
             Mesafe        = $target
             Kosu          = $exact.Count
@@ -512,6 +543,12 @@ function Build-Distance($race, $histCache) {
             YakinBirinci  = @($near | Where-Object { [int]$_.Sira -eq 1 }).Count
             IlkKez        = ($runs.Count -gt 0 -and $exact.Count -eq 0 -and $near.Count -eq 0)
             Gecmis        = $runs.Count
+            SonDerece     = if ($son) { [string]$son.Derece } else { '' }
+            SonTarih      = if ($son) { [string]$son.Tarih } else { '' }
+            SonSehir      = if ($son) { [string]$son.Sehir } else { '' }
+            SonPist       = if ($son) { [string]$son.Pist } else { '' }
+            SonSira       = if ($son) { $son.Sira } else { $null }
+            AyniSehir     = $ayniSehir
         }
     }
     return $res
@@ -1222,6 +1259,31 @@ function Build-DayData([string]$TarihStr, $queryOptions, $winsCache, $histCache,
         if (-not $html -and $city.Url -ne $cityUrl) { $html = Invoke-Tjk $city.Url -TimeoutSec 15 }
         if (-not $html) { continue }
         $races = Get-Races $html $city.SehirId $city.Ad
+        # Ganyan + bitiş sırası: yalnız bugün/geçmiş günler için sonuç sayfasından.
+        # Gelecek gün (yarın) için istek atılmaz; cache'li çağrı saatlik yayında yükü sınırlar.
+        $dayRes = @{}
+        $tarihDate = $null
+        try { $tarihDate = [datetime]::ParseExact($TarihStr,'dd/MM/yyyy',$script:CIV).Date } catch {}
+        if ($tarihDate -and $tarihDate -le (Get-Date).Date) {
+            try {
+                $resUrl = "$script:Base/TR/YarisSever/Info/Sehir/GunlukYarisSonuclari?SehirId=$($city.SehirId)&QueryParameter_Tarih=" +
+                    [uri]::EscapeDataString($TarihStr) + "&SehirAdi=" + [uri]::EscapeDataString($city.Ad)
+                $rh = Invoke-Tjk $resUrl -TimeoutSec 20 -Cat ('gunsonuc-' + $TarihStr + '-' + $city.SehirId)
+                if ($rh) { foreach ($b in @(Get-ResultBlocks $rh)) { $dayRes[[string]$b.KosuKodu] = @($b.Atlar) } }
+            } catch {}
+        }
+        foreach ($race in $races) {
+            $rk = [string]$race.KosuKodu
+            if ($dayRes.ContainsKey($rk)) {
+                foreach ($h in @($race.Atlar)) {
+                    $rr = @($dayRes[$rk] | Where-Object { [string]$_.At -eq [string]$h.At }) | Select-Object -First 1
+                    if ($rr) {
+                        $h.Gny = $rr.Gny
+                        $h | Add-Member -NotePropertyName Sonuc -NotePropertyValue $rr.Sira -Force
+                    }
+                }
+            }
+        }
         $winsMap = @{}; $cityJockey = @()
         if (-not $Hizli) {
             $winsMap = Get-JockeyWinsMap $races $city.SehirId $Donem $winsCache
@@ -1242,6 +1304,10 @@ function Build-DayData([string]$TarihStr, $queryOptions, $winsCache, $histCache,
                 $dist = Build-Distance $race $histCache
                 Update-SireStore $race $histCache $sireStore
                 $sireHints = Build-SireHints $race $histCache $sireStore
+            } else {
+                # Hizli modda da yalniz "bu mesafede son kosu" bilgisi icin gecmis cekilir.
+                Ensure-Histories $race $histCache
+                $dist = Build-Distance $race $histCache
             }
             $form = Build-FormScore $race
             $consensus = Build-Consensus $race $surf $h2h $jockeyRank $form
