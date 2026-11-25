@@ -1,5 +1,5 @@
 /* Naim Baba Yarış — çevrimdışı kabuk + son gün/istatistik yanıtları */
-const SURUM = 'naim-at-v2';
+const SURUM = 'naim-at-v4';
 const KABUK = [
   './',
   './manifest.webmanifest',
@@ -31,7 +31,10 @@ self.addEventListener('activate', function (e) {
 
 function anahtar(url) {
   const u = new URL(url);
-  return u.origin + u.pathname;   // ?t=... önbellek anahtarını bölmesin
+  // API isteklerinde tarih/koşu parametresi anahtara girmeli; yoksa bütün
+  // günler tek önbellek girdisini paylaşır ve "hep Salı" görünür.
+  const q = u.pathname.indexOf('/api/') === 0 ? u.search : '';
+  return u.origin + u.pathname + q;
 }
 
 self.addEventListener('fetch', function (e) {

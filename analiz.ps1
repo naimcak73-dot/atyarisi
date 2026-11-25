@@ -1223,6 +1223,7 @@ function Build-RaceTypeStats($race, $queryOptions, [string]$sehirId = '-1') {
         EnYuksekHpKazanma= if ($kosuSayisi -gt 0) { [math]::Round(100.0*$enYuksekHpOlan/$kosuSayisi,1) } else { $null }
         EnDusukHpKazanma= if ($kosuSayisi -gt 0) { [math]::Round(100.0*$enDusukHpOlan/$kosuSayisi,1) } else { $null }
         OrtYas= if ($yaslar.Count -gt 0) { [math]::Round(($yaslar | Measure-Object -Average).Average,1) } else { $null }
+        Surum=2
         Kosular=$raceList
         Hata=$null
     }

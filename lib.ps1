@@ -229,6 +229,13 @@ function Build-StatsData([string]$tip, [string]$grup, [int]$n, [string]$sehir = 
     $cached = $null
     if (Test-Path $file) { try { $cached = ([System.IO.File]::ReadAllText($file, [System.Text.Encoding]::UTF8) | ConvertFrom-Json) } catch {} }
     $cachedValid = ($cached -and -not $cached.Hata -and ($cached.PSObject.Properties.Name -contains 'KadroSayisi') -and [int]$cached.KosuSayisi -gt 0)
+    # "2 Yaşlı"/"3 Yaşlı" gibi tek yaş kategorilerinde ortalama yaş kategoriden
+    # sapıyorsa dosya eski/yanlış üretilmiştir; yalnız o dosya yenilenir.
+    if ($cachedValid -and $grup -match '(\d+)\s*Ya[şs]l[ıi]') {
+        $gy = [int]$Matches[1]
+        $oy = if ($cached.PSObject.Properties.Name -contains 'OrtYas') { $cached.OrtYas } else { $null }
+        if ($null -eq $oy -or [math]::Abs([double]$oy - $gy) -gt 0.6) { $cachedValid = $false }
+    }
     # Mesafe/cinsiyet süzmesi olmayan bir istatistikte kadro 0 ise dosya eski
     # (kadro atlanarak üretilmiş) demektir; yeniden hesaplanmalı.
     if ($cachedValid -and [string]$mesafe -eq '' -and [string]$cins -eq '' -and [int]$cached.KadroSayisi -eq 0) { $cachedValid = $false }

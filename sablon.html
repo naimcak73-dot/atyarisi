@@ -135,6 +135,7 @@ aside::-webkit-scrollbar-thumb{background:#9aa7b4;border-radius:5px;border:1px s
   .mcity.ok{color:var(--good)}
   .mcity.bad{color:var(--warn)}
   .mtrk{font-size:10px;color:var(--muted);white-space:nowrap}
+  td.orj{max-width:230px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .badge{display:inline-block;font-size:11px;padding:2px 7px;border-radius:7px;font-weight:600}
   .b-kum{background:rgba(138,90,43,.18);color:#c98a4b}
   .b-cim{background:rgba(46,125,50,.18);color:#4caf50}
@@ -323,7 +324,7 @@ function renderSub(){
     `Tarih: ${d.Tarih}${gunAdi(d.Tarih)} · ${label}` + (d.Hava ? ` · ${d.Hava}` : '') + ` · Dönem: ${DONEM} · Üretim: ${DATA.Uretim}`
     + (DATA.Uyari ? ` · ⚠ ${DATA.Uyari}` : '')
     + ((DATA.Bilgi && !DATA.Uyari) ? ` · ⓘ ${DATA.Bilgi}` : '')
-    + ' · sürüm 16.11-5';
+    + ' · sürüm 24.11-3';
 }
 
 function gunAdi(tr){ const p=String(tr||'').split(/[./]/); if(p.length<3) return ''; const dt=new Date(Number(p[2]),Number(p[1])-1,Number(p[0])); if(isNaN(dt)) return ''; const g=['Pazar','Pazartesi','Salı','Çarşamba','Perşembe','Cuma','Cumartesi']; return ' ('+g[dt.getDay()]+')'; }
@@ -357,8 +358,11 @@ function showError(msg, iso, sessiz){
   bannerTimer=setTimeout(hideBanner, sessiz ? 5000 : 12000);
 }
 let istenenIso = '';
+let loadInFlight = false;
 function loadDate(iso, push, yabanciOverride, sessiz){
   if (location.protocol === 'file:') { alert('Tarih değiştirmek için uygulamayı calistir.bat ile (sunucu modunda) açın.'); return; }
+  // Aynı gün zaten yükleniyorsa isteği baştan başlatma (uzun süren çekim iptal olmasın).
+  if (loadInFlight && iso === istenenIso) return;
   const qs = new URLSearchParams(location.search);
   const hizli = qs.get('hizli') !== '0';
   const yabanci = (typeof yabanciOverride === 'boolean') ? yabanciOverride : (qs.get('yabanci') === '1');
@@ -366,9 +370,10 @@ function loadDate(iso, push, yabanciOverride, sessiz){
   const gelecek = iso > bugunIso;          // yarın/sonrası: TJK programı henüz yok
   const seq = ++loadSeq;                   // her istek kendi numarasını alır
   istenenIso = iso;
+  loadInFlight = true;
   const b = ensureBanner();
   b.className='loadbanner';
-  b.innerHTML='Yükleniyor… '+esc(iso)+' <button onclick="loadDate(\''+prevIso(iso)+'\')">‹ Önceki gün</button> <button onclick="loadDate(\''+bugunIso+'\')">Bugüne dön</button>';
+  b.innerHTML='Yükleniyor… '+esc(iso)+' <span class="small">(sayfa ve at geçmişi çekiliyor, birkaç saniye sürebilir)</span> <button onclick="loadDate(\''+prevIso(iso)+'\')">‹ Önceki gün</button> <button onclick="loadDate(\''+bugunIso+'\')">Bugüne dön</button>';
   if (currentAbort) { try { currentAbort.abort(); } catch(e){} }
   const ctl = window.AbortController ? new AbortController() : null;
   currentAbort = ctl;
@@ -379,6 +384,7 @@ function loadDate(iso, push, yabanciOverride, sessiz){
     .then(function(p){
       clearTimeout(to);
       if (seq !== loadSeq) return;          // daha yeni bir istek başladı: bunun sonucu yok sayılır
+      loadInFlight = false;
       DATA=p; initFromData(); render(); hideBanner();
       try { window.scrollTo(0,0); } catch(e){}
       lastGoodIso = p.TarihISO || iso;
@@ -404,6 +410,7 @@ function loadDate(iso, push, yabanciOverride, sessiz){
     .catch(function(e){
       clearTimeout(to);
       if (seq !== loadSeq) return;          // iptal edilen eski istek: kırmızı uyarı verme
+      loadInFlight = false;
       if (gelecek) {
         // Gelecek gün verisi yoksa (404/503) kırmızı hata değil, bilgi göster.
         const bb = ensureBanner();
@@ -414,7 +421,16 @@ function loadDate(iso, push, yabanciOverride, sessiz){
       }
       const msg = (e && e.name === 'AbortError') ? 'zaman aşımı' : ((e && e.message) ? e.message : 'hata');
       const shown = (DATA && DATA.Tarih) ? DATA.Tarih : '';
-      showError(isoToTR(iso) + ' yüklenemedi (' + msg + ').' + (shown ? ' Şu an ' + shown + ' gösteriliyor.' : ''), iso, !!sessiz);
+      // Geçmiş gün yayında yoksa kırmızı hata değil, bilgi bandı göster.
+      const bb = ensureBanner();
+      bb.className = 'loadbanner';
+      bb.innerHTML = esc(isoToTR(iso)) + ' için veri alınamadı (' + esc(msg) + ').' +
+        (shown ? ' Şu an ' + esc(shown) + ' gösteriliyor.' : '') +
+        ' <button onclick="loadDate(\'' + iso + '\')">Tekrar dene</button>' +
+        (shown && DATA.TarihISO ? ' <button onclick="loadDate(\'' + DATA.TarihISO + '\')">Son veriye dön</button>' : '') +
+        ' <button aria-label="Kapat" onclick="hideBanner()">✕</button>';
+      if (bannerTimer) clearTimeout(bannerTimer);
+      bannerTimer = setTimeout(hideBanner, 8000);
     });
 }
 function navToDate(iso){ loadDate(iso); }
@@ -764,7 +780,8 @@ function renderSideJockey(){
       liste.forEach((j,i)=>{
         const sel=(SEC_JOKEY===j.tam);
         const yuz=(j.P1!=null)?(' · %'+j.P1):'';
-        h+=`<div class="rank${sel?' selj':''}" data-j="${esc(j.tam)}" data-ci="${ci}"><span><b>${i+1}.</b> ${esc(j.tam)} <span class="small">${j.kosu} koşu</span></span><span><b>${j.D1==null?'—':j.D1}</b> <span class="small">1.${yuz}</span></span></div>`;
+        const sezon=(j.sezon!=null)?(' · sezon '+j.sezon+' koşu'):'';
+        h+=`<div class="rank${sel?' selj':''}" data-j="${esc(j.tam)}" data-ci="${ci}"><span><b>${i+1}.</b> ${esc(j.tam)} <span class="small">bugün ${j.kosu} biniş${sezon}</span></span><span><b>${j.D1==null?'—':j.D1}</b> <span class="small">1.${yuz}</span></span></div>`;
       });
       h+=`<div class="small">${JK_SIRA==='PCT'?'galibiyet yüzdesine':'birincilik sayısına'} göre · yalnızca bugün binen jokeyler</div>`;
       box.innerHTML=h;
@@ -781,6 +798,12 @@ function renderSideJockey(){
 }
 
 function surfaceBadge(race, atId){
+  // Bu koşunun pisti her zaman programdan gelir; hızlı veride Yuzey boş olabilir.
+  const p = race.Pist || '';
+  if (p) {
+    const cls = p === 'Çim' ? 'cim' : (p === 'Kum' ? 'kum' : (p === 'Sentetik' ? 'snt' : ''));
+    return `<span class="chip pist ${cls}" title="Bu koşunun pisti">${esc(p)}</span>`;
+  }
   const v = race.Yuzey && race.Yuzey[atId];
   const k = v ? v.Karar : 'YOK';
   return `<span class="badge ${VCLS[k]||'b-yok'}">${VLABEL[k]||'—'}</span>`;
@@ -923,7 +946,7 @@ function horseTable(race){
       ${hasGny?`<td class="num" title="Ganyan (sonuç)">${gnyTxt(h)}</td>`:''}
       ${hasSonuc?`<td class="num">${h.Sonuc!=null?esc(h.Sonuc):'—'}</td>`:''}
       <td class="hide-s" title="Bu mesafede koşu/birinci (≈ en yakın mesafe)">${mesafeBadge(race,h.AtId)}</td>
-      <td class="hide-s">${esc(orijin)}</td>
+      <td class="hide-s orj" title="${esc(orijin)}">${esc(orijin)}</td>
       <td class="hide-s">${esc(h.Form)}</td>
       <td class="hide-s">${esc(h.Derece)}</td>
       <td>${surfaceBadge(race,h.AtId)}</td>
