@@ -73,11 +73,13 @@ $payload = Build-Payload $tarih $true
 if (-not $payload) { Log "gun verisi alinamadi"; }
 $gunDosya = $null
 $gunIsoList = @()
+$gunYazilan = @{}
 if ($payload) {
     $iso = $bugun.ToString('yyyyMMdd')
     $gunDosya = Join-Path $veri ('gun-' + $iso + '.json')
     YazJson $gunDosya $payload
     YazJson (Join-Path $veri 'gun.json') $payload
+    $gunYazilan['gun-' + $iso + '.json'] = $true
     $sr = 0; foreach ($d in @($payload.Tarihler)) { foreach ($c in @($d.Sehirler)) { $sr += @($c.Kosular).Count } }
     Log ("gun verisi yazildi: $sr kosu, $($payload.Tarihler.Count) tarih")
     Gecen 'gun verisi'
@@ -95,6 +97,7 @@ if ($payload) {
             if ($pYarin -and ([string]$pYarin.TarihISO) -eq $beklenen) {
                 $yi = $yarin.ToString('yyyyMMdd')
                 YazJson (Join-Path $veri ('gun-' + $yi + '.json')) $pYarin
+                $gunYazilan['gun-' + $yi + '.json'] = $true
                 $gunIsoList += $yi
                 $sy2 = 0; foreach ($d in @($pYarin.Tarihler)) { foreach ($c in @($d.Sehirler)) { $sy2 += @($c.Kosular).Count } }
                 Log ("yarin gun verisi yazildi: $sy2 kosu ($yarinTarih)")
@@ -112,6 +115,7 @@ if ($payload) {
             if ($pDun) {
                 $di = $dun.ToString('yyyyMMdd')
                 YazJson (Join-Path $veri ('gun-' + $di + '.json')) $pDun
+                $gunYazilan['gun-' + $di + '.json'] = $true
                 $gunIsoList += $di
                 $srd = 0; foreach ($d in @($pDun.Tarihler)) { foreach ($c in @($d.Sehirler)) { $srd += @($c.Kosular).Count } }
                 Log ("dun gun verisi yazildi: $srd kosu ($dunTarih)")
@@ -130,6 +134,8 @@ if ($payload) {
                 $yi = $bugun.ToString('yyyyMMdd')
                 YazJson (Join-Path $veri ('gun-' + $yi + '-yd.json')) $yd
                 YazJson (Join-Path $veri 'gun-yabanci.json') $yd
+                $gunYazilan['gun-' + $yi + '-yd.json'] = $true
+                $gunYazilan['gun-yabanci.json'] = $true
                 $sy = 0; foreach ($d in @($yd.Tarihler)) { foreach ($c in @($d.Sehirler)) { $sy += @($c.Kosular).Count } }
                 Log ("yabanci gun yazildi: $sy kosu ($yi)")
                 # Not: yurt disi kosularin ayrintili analizi uretilmiyor (TJK detay cagrilari
@@ -188,7 +194,10 @@ Get-ChildItem $yerelVeri -Filter 'istatistik-*.json' -ErrorAction SilentlyContin
 # Onceki calismalardan kalan gun/analiz dosyalarini yayina tasi (gh-pages her
 # sefer sifirdan kuruluyor; bu kopya olmazsa gecmis gunler siteden silinir).
 Get-ChildItem $yerelVeri -Filter 'gun-*.json' -ErrorAction SilentlyContinue | ForEach-Object {
-    Copy-Item $_.FullName (Join-Path $veri $_.Name) -Force
+    # Bu calismada taze uretilen dosyayi depodaki eski kopyayla EZME.
+    if (-not $gunYazilan.ContainsKey($_.Name)) {
+        Copy-Item $_.FullName (Join-Path $veri $_.Name) -Force
+    }
 }
 Get-ChildItem $yerelVeri -Filter 'analiz-*.json' -ErrorAction SilentlyContinue | ForEach-Object {
     Copy-Item $_.FullName (Join-Path $veri $_.Name) -Force
