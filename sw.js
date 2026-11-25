@@ -1,5 +1,5 @@
 /* Naim Baba Yarış — çevrimdışı kabuk + son gün/istatistik yanıtları */
-const SURUM = 'naim-at-v4';
+const SURUM = 'naim-at-v5';
 const KABUK = [
   './',
   './manifest.webmanifest',

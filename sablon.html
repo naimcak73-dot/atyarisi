@@ -324,7 +324,7 @@ function renderSub(){
     `Tarih: ${d.Tarih}${gunAdi(d.Tarih)} · ${label}` + (d.Hava ? ` · ${d.Hava}` : '') + ` · Dönem: ${DONEM} · Üretim: ${DATA.Uretim}`
     + (DATA.Uyari ? ` · ⚠ ${DATA.Uyari}` : '')
     + ((DATA.Bilgi && !DATA.Uyari) ? ` · ⓘ ${DATA.Bilgi}` : '')
-    + ' · sürüm 24.11-3';
+    + ' · sürüm 24.11-4';
 }
 
 function gunAdi(tr){ const p=String(tr||'').split(/[./]/); if(p.length<3) return ''; const dt=new Date(Number(p[2]),Number(p[1])-1,Number(p[0])); if(isNaN(dt)) return ''; const g=['Pazar','Pazartesi','Salı','Çarşamba','Perşembe','Cuma','Cumartesi']; return ' ('+g[dt.getDay()]+')'; }
@@ -498,8 +498,20 @@ async function istatistikHesapla(kodu){
       race.Istatistik=s; OPEN_STATS[String(kodu)]=true; hideBanner(); render(); return;
     }catch(e){
       const m=((e&&e.message)||'hata');
-      // Statik yayında bu koşu türü için istatistik dosyası olmayabilir: kırmızı hata yerine bilgi
-      if(/HTTP 404/.test(m)){
+      // Statik yayında bu koşu türü için istatistik dosyası olmayabilir (404/503):
+      // önce mesafe/cinsiyet süzmesiz genel dosyayı dene, sonra bilgi göster.
+      if(/HTTP (404|503)/.test(m)){
+        try{
+          const sel2=race._statSel||{};
+          const gr3=(sel2.grup!==undefined)?sel2.grup:(race.Grup||'');
+          const r2=await fetch('/api/istatistik?tip='+encodeURIComponent(tip)+'&grup='+encodeURIComponent(gr3)+'&n=50&sehir=-1');
+          if(r2.ok){
+            const s2=await r2.json();
+            if(s2 && !s2.Hata && !s2.Hazirlaniyor){
+              race.Istatistik=s2; OPEN_STATS[String(kodu)]=true; hideBanner(); render(); return;
+            }
+          }
+        }catch(_){}
         ensureBanner().innerHTML='<span class="mut">Bu koşu için kategori istatistiği yayında yok; koşu bilgileri gösteriliyor.</span>';
         setTimeout(function(){ try{ hideBanner(); }catch(_){} }, 4000);
         return;
@@ -528,7 +540,7 @@ async function analizYukle(kodu){
     // Analiz dosyası yoksa (statik yayın) koşuyu eldeki veriyle göster; kırmızı hata verme
     await jokeySiraDoldur(race);
     const m=((e&&e.message)||'hata');
-    if(/HTTP 404/.test(m) || (race.JokeySira||[]).length || race.__detay){
+    if(/HTTP (404|503)/.test(m) || (race.JokeySira||[]).length || race.__detay){
       hideBanner(); render();
     } else {
       showError('Ayrıntılı analiz alınamadı ('+m+').', iso);
@@ -946,9 +958,9 @@ function horseTable(race){
       ${hasGny?`<td class="num" title="Ganyan (sonuç)">${gnyTxt(h)}</td>`:''}
       ${hasSonuc?`<td class="num">${h.Sonuc!=null?esc(h.Sonuc):'—'}</td>`:''}
       <td class="hide-s" title="Bu mesafede koşu/birinci (≈ en yakın mesafe)">${mesafeBadge(race,h.AtId)}</td>
-      <td class="hide-s orj" title="${esc(orijin)}">${esc(orijin)}</td>
-      <td class="hide-s">${esc(h.Form)}</td>
-      <td class="hide-s">${esc(h.Derece)}</td>
+      <td class="orj" title="${esc(orijin)}">${esc(orijin)}</td>
+      <td>${esc(h.Form)}</td>
+      <td>${esc(h.Derece)}</td>
       <td>${surfaceBadge(race,h.AtId)}</td>
     </tr>`;
   });
@@ -958,7 +970,7 @@ function horseTable(race){
       <th class="num">Kilo</th><th class="num">HP</th><th class="num hide-s">St</th><th class="num">AGF</th>
       ${hasGny?'<th class="num" title="Ganyan (sonuç)">Gny</th>':''}
       ${hasSonuc?'<th class="num">Sonuç</th>':''}
-      <th class="hide-s">Mesafe</th><th class="hide-s">Orijin</th><th class="hide-s">Form</th><th class="hide-s">Derece</th><th>Pist</th>
+      <th class="hide-s">Mesafe</th><th>Orijin</th><th>Form</th><th>Derece</th><th>Pist</th>
     </tr></thead><tbody>${rows}</tbody></table></div>`;
 }
 
