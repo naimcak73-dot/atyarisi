@@ -102,6 +102,17 @@ try {
     if ($tipListe.Count -gt 0) {
         $tipListe = @($tipListe | Sort-Object @{Expression={ if ($_ -match '^(Handikap|Kısa Vade|KV|Şartlı|Maiden|G ?[123]$|G3 Handikap)') { 0 } else { 1 } }}, @{Expression={ $_ }})
     }
+    # Once turlarin kendisi (Turkiye geneli, kategorisiz) hazir olsun.
+    if ($tipListe.Count -gt 0) {
+        $temelIsler = New-Object System.Collections.ArrayList
+        foreach ($t in $tipListe) {
+            $line = ('{0}|{1}|{2}|||' -f $t, $N, '-1')
+            $zaten = @($isler | Where-Object { ('{0}|{1}|{2}|{3}|{4}|{5}' -f $_.Tip, $_.N, $_.Sehir, $_.Grup, $_.Mesafe, $_.Cins) -eq $line }).Count -gt 0
+            if (-not $zaten) { [void]$temelIsler.Add([pscustomobject]@{ Tip = $t; N = $N; Sehir = '-1'; Grup = ''; Mesafe = ''; Cins = ''; Kaynak = 'temel' }) }
+        }
+        if ($temelIsler.Count -gt 0) { $isler.InsertRange([math]::Min($qAdet, $isler.Count), $temelIsler) }
+        Log ('doldur: temel tur isleri {0}' -f $temelIsler.Count)
+    }
     if ($tipListe.Count -gt 0 -and $katlar.Count -gt 0) {
         $katIsler = New-Object System.Collections.ArrayList
         foreach ($t in $tipListe) {

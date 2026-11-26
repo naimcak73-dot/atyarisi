@@ -1276,7 +1276,23 @@ function Build-DayData([string]$TarihStr, $queryOptions, $winsCache, $histCache,
             try {
                 $resUrl = "$script:Base/TR/YarisSever/Info/Sehir/GunlukYarisSonuclari?SehirId=$($city.SehirId)&QueryParameter_Tarih=" +
                     [uri]::EscapeDataString($TarihStr) + "&SehirAdi=" + [uri]::EscapeDataString($city.Ad)
-                $rh = Invoke-Tjk $resUrl -TimeoutSec 20 -Cat ('gunsonuc-' + $TarihStr + '-' + $city.SehirId)
+                # Sonuç sayfası yavaş (30-60 sn) ve koşular gün içinde tamamlandıkça
+                # değişir. Bugünün sayfası 5 dk, geçmiş günler 1 gün önbellekte kalır.
+                $resTtl = if ($tarihDate.Date -eq (Get-Date).Date) { 5 } else { 1440 }
+                # ÖNEMLİ: yarıda kesilmiş indirme (ör. 9 koşunun yalnız 3'ü) önbelleğe
+                # düşmüş olabilir. Sayfadaki koşu bloğu sayısı programdan azsa ve dosya
+                # 30 dakikadan eskiyse önbelleği at, ağdan tamamını yeniden çek.
+                $beklenen = @($races).Count
+                try {
+                    $rcf = Join-Path $script:CacheBase ((Sha1 $resUrl) + '.html')
+                    if ((Test-Path $rcf) -and $beklenen -gt 0) {
+                        $eski = [IO.File]::ReadAllText($rcf, [Text.Encoding]::UTF8)
+                        $blok = ([regex]::Matches($eski, 'kosubilgisi-\d+')).Count
+                        $yas = ((Get-Date) - (Get-Item $rcf).LastWriteTime).TotalMinutes
+                        if ($blok -lt $beklenen -and $yas -gt 30) { Remove-Item $rcf -Force -ErrorAction SilentlyContinue }
+                    }
+                } catch {}
+                $rh = Invoke-Tjk $resUrl -TimeoutSec 60 -Retries 2 -TtlMin $resTtl -Cat ('gunsonuc-' + $TarihStr + '-' + $city.SehirId)
                 if ($rh) {
                     foreach ($b in @(Get-ResultBlocks $rh)) { $dayRes[[string]$b.KosuKodu] = @($b.Atlar) }
                     # "6'LI GANYAN" gibi havuz tutarlari (sayfa altindaki ganyan ozeti)

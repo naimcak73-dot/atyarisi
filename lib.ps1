@@ -183,11 +183,34 @@ function Get-StatsCache([string]$file) {
     return $null
 }
 
-function Test-StatsFresh([string]$file) {
+function Get-StatsTtlHours([string]$grup = '', [string]$mesafe = '', [string]$cins = '') {
+    # Temel tür istatistiği (son 50 koşu) günde birkaç kez değişir; 3 gün yeter.
+    # Kategori/mesafe/cinsiyet kırılımları çok daha yavaş değişir: 1 hafta.
+    if ($grup -or $mesafe -or $cins) { return 168 }
+    return 72
+}
+function Test-StatsFresh([string]$file, [int]$ttlHours = 72) {
     if (-not (Test-Path $file)) { return $false }
     if (-not (Get-StatsCache $file)) { return $false }
     $age = ((Get-Date) - (Get-Item $file).LastWriteTime).TotalHours
-    return ($age -lt 24)
+    return ($age -lt $ttlHours)
+}
+# Olumsuz önbellek: TJK yanıt vermeyen isteği her tıklamada yeniden denemek
+# yerine bir süre bekletir; böylece sayfa anında "şu saatte tekrar" der.
+function Get-StatsFailFile([string]$statsFile) { return ($statsFile + '.hata') }
+function Get-StatsFailUntil([string]$statsFile) {
+    $f = Get-StatsFailFile $statsFile
+    if (-not (Test-Path $f)) { return $null }
+    try { return [datetime]::ParseExact(([IO.File]::ReadAllText($f)).Trim(), 's', $script:CIV) } catch { return $null }
+}
+function Set-StatsFail([string]$statsFile, [int]$minutes = 15) {
+    try {
+        $f = Get-StatsFailFile $statsFile
+        [IO.File]::WriteAllText($f, (Get-Date).AddMinutes($minutes).ToString('s'))
+    } catch {}
+}
+function Clear-StatsFail([string]$statsFile) {
+    try { $f = Get-StatsFailFile $statsFile; if (Test-Path $f) { Remove-Item $f -Force -ErrorAction SilentlyContinue } } catch {}
 }
 
 # Istek aninda uzun TJK taramasini engellemek icin istenen istatistigi kuyruga yazar.
@@ -240,7 +263,10 @@ function Build-StatsData([string]$tip, [string]$grup, [int]$n, [string]$sehir = 
     # (kadro atlanarak üretilmiş) demektir; yeniden hesaplanmalı.
     if ($cachedValid -and [string]$mesafe -eq '' -and [string]$cins -eq '' -and [int]$cached.KadroSayisi -eq 0) { $cachedValid = $false }
     $fresh = $false
-    if ($cachedValid -and (Test-Path $file)) { $age = ((Get-Date) - (Get-Item $file).LastWriteTime).TotalHours; if ($age -lt 24) { $fresh = $true } }
+    if ($cachedValid -and (Test-Path $file)) {
+        $age = ((Get-Date) - (Get-Item $file).LastWriteTime).TotalHours
+        if ($age -lt (Get-StatsTtlHours $grup $mesafe $cins)) { $fresh = $true }
+    }
     if ($fresh -and $cached) { return $cached }
     if (-not $queryOptions) { if ($cachedValid) { return $cached }; return [pscustomobject]@{ Hata='TJK sorgu seçenekleri alınamadı'; Tip=$tip; Grup=$grup; KosuSayisi=0 } }
     # Kadro (tam at listesi) yalnız mesafe/cinsiyet süzmesinde atlanır.
@@ -250,10 +276,14 @@ function Build-StatsData([string]$tip, [string]$grup, [int]$n, [string]$sehir = 
         $res = Build-RaceTypeStats $race $queryOptions $sehir
         if ($res -and -not $res.Hata -and [int]$res.KosuSayisi -gt 0) {
             try { [System.IO.File]::WriteAllText($file, ($res | ConvertTo-Json -Depth 12 -Compress), (New-Object System.Text.UTF8Encoding($false))) } catch {}
+            Clear-StatsFail $file
+        } elseif ($res -and $res.Hata) {
+            Set-StatsFail $file 20
         }
         if ($res.Hata -and $cachedValid) { $cached | Add-Member -NotePropertyName Bayat -NotePropertyValue $true -Force; return $cached }
         return $res
     } catch {
+        Set-StatsFail $file 20
         if ($cachedValid) { $cached | Add-Member -NotePropertyName Bayat -NotePropertyValue $true -Force; return $cached }
         return [pscustomobject]@{ Hata=$_.Exception.Message; Tip=$tip; Grup=$grup; KosuSayisi=0 }
     }
@@ -598,6 +628,44 @@ function Handle-Client($client, $config) {
             $kullanilan = $yil
             if (-not $tab.Count -and $yil -ne '-1') { $tab = @(Get-JockeyTable $sid '-1'); $kullanilan = '-1' }
             Send-Response $stream 200 'application/json' (To-JsonSafe ([pscustomobject]@{ SehirId=$sid; Yil=$kullanilan; Jokeyler=$tab }))
+        } elseif ($path -eq '/api/jokey-tablo') {
+            # Jokey x hipodrom matrisi icin tek sehrin tablosu (diskte 12 saat saklanir).
+            $sid = [string]$params['sehir']
+            if ($sid -notmatch '^-?\d+$') { $sid = '-1' }
+            $yil = [string]$params['yil']
+            if ($yil -notmatch '^\d{4}$') { $yil = $Donem }
+            $vdir = Join-Path $script:Root 'veri'
+            if (-not (Test-Path $vdir)) { New-Item -ItemType Directory -Path $vdir -Force | Out-Null }
+            $dosya = Join-Path $vdir ("jokey-tablo-$yil-$sid.json")
+            $taze = $false
+            if (Test-Path $dosya) {
+                try {
+                    $age = ((Get-Date) - (Get-Item $dosya).LastWriteTime).TotalHours
+                    $taze = ($age -lt 12)
+                } catch {}
+            }
+            if ($taze) {
+                Send-Response $stream 200 'application/json' ([IO.File]::ReadAllText($dosya, [Text.Encoding]::UTF8))
+            } else {
+                $fail = Get-StatsFailUntil $dosya
+                if ($fail -and $fail -gt (Get-Date)) {
+                    $bekle = [pscustomobject]@{ SehirId=$sid; Yil=$yil; Jokeyler=@(); Hata=$true; Mesaj=("TJK şu an yanıt vermiyor; {0:HH:mm} sonrası tekrar denenecek." -f $fail) }
+                    Send-Response $stream 200 'application/json' (To-JsonSafe $bekle)
+                } else {
+                    $tab = @(Get-JockeyTable $sid $yil)
+                    if (-not $tab.Count) { $tab = @(Get-JockeyTable $sid '-1') }
+                    if ($tab.Count) {
+                        $body = To-JsonSafe ([pscustomobject]@{ SehirId=$sid; Yil=$yil; Jokeyler=$tab })
+                        try { [IO.File]::WriteAllText($dosya, $body, (New-Object Text.UTF8Encoding($false))) } catch {}
+                        Clear-StatsFail $dosya
+                        Send-Response $stream 200 'application/json' $body
+                    } else {
+                        Set-StatsFail $dosya 15
+                        $bekle = [pscustomobject]@{ SehirId=$sid; Yil=$yil; Jokeyler=@(); Hata=$true; Mesaj='TJK yanıt vermedi; biraz sonra tekrar denenecek.' }
+                        Send-Response $stream 200 'application/json' (To-JsonSafe $bekle)
+                    }
+                }
+            }
         } elseif ($path -eq '/api/kategoriler') {
             # Istatistik panelindeki kategori (yas+irk) ve cinsiyet secenekleri
             $grup = @(); $cins = @()
@@ -617,13 +685,27 @@ function Handle-Client($client, $config) {
             $mesafeB = [string]$params['mesafe']; $cinsB = [string]$params['cins']
             $hizliF = ($params['hizli'] -eq '1')
             $dosya = Get-StatsFile $tip $grup $n $params['sehir'] $mesafeB $cinsB
+            $ttl = Get-StatsTtlHours $grup $mesafeB $cinsB
+            $failUntil = Get-StatsFailUntil $dosya
+            $failAktif = [bool]($failUntil -and $failUntil -gt (Get-Date))
             # mesafe/cinsiyet secildiyse kuyruga atma; istegi aninda hesapla (kucuk ornek, hizli)
-            if (-not $uret -and -not $hizliF -and -not $mesafeB -and -not $cinsB -and -not (Test-StatsFresh $dosya)) {
+            if (-not $uret -and -not $hizliF -and -not $mesafeB -and -not $cinsB -and -not (Test-StatsFresh $dosya $ttl)) {
                 $bayat = Get-StatsCache $dosya
                 if ($bayat) {
-                    Add-StatsQueue $tip $n $params['sehir'] $grup $mesafeB $cinsB
+                    if (-not $failAktif) { Add-StatsQueue $tip $n $params['sehir'] $grup $mesafeB $cinsB }
                     $bayat | Add-Member -NotePropertyName Bayat -NotePropertyValue $true -Force
+                    if ($failAktif) { $bayat | Add-Member -NotePropertyName Bilgi -NotePropertyValue ("TJK yanıt vermedi; önbellekteki son veri gösteriliyor. Yeni deneme: {0:HH:mm}" -f $failUntil) -Force }
                     Send-Response $stream 200 'application/json' (To-JsonSafe $bayat)
+                } elseif ($failAktif) {
+                    # TJK bu türü şu an vermiyor: her tıklamada yeniden denemeyi engelle
+                    $bekle = [pscustomobject]@{
+                        Hazirlaniyor = $true
+                        Tip          = (([string]$tip) -split '/')[0].Trim()
+                        Grup         = $grup
+                        KosuSayisi   = 0
+                        Mesaj        = ("TJK şu an yanıt vermiyor. {0:HH:mm} civarında otomatik yeniden denenecek; hazır olunca bu sayfa kendiliğinden dolacak." -f $failUntil)
+                    }
+                    Send-Response $stream 200 'application/json' (To-JsonSafe $bekle)
                 } else {
                     Add-StatsQueue $tip $n $params['sehir'] $grup $mesafeB $cinsB
                     $bekle = [pscustomobject]@{
@@ -635,6 +717,10 @@ function Handle-Client($client, $config) {
                     }
                     Send-Response $stream 200 'application/json' (To-JsonSafe $bekle)
                 }
+            } elseif ($failAktif -and $uret) {
+                # Arka plan iscisi da ayni isi 3 dakikada bir TJK'ya sormasin
+                $bekle = [pscustomobject]@{ Hazirlaniyor=$true; Tip=(([string]$tip) -split '/')[0].Trim(); Grup=$grup; KosuSayisi=0; Mesaj=("Bekleme: {0:HH:mm} sonrası yeniden denenecek." -f $failUntil) }
+                Send-Response $stream 200 'application/json' (To-JsonSafe $bekle)
             } else {
                 Send-Response $stream 200 'application/json' (To-JsonSafe (Build-StatsData $tip $grup $n $params['sehir'] $mesafeB $cinsB $hizliF))
             }
@@ -662,6 +748,8 @@ function Handle-Client($client, $config) {
             Send-File $stream (Join-Path $script:Root 'turler.html') 'text/html; charset=utf-8' 0
         } elseif ($path -eq '/jokeyler' -or $path -eq '/jokeyler.html') {
             Send-File $stream (Join-Path $script:Root 'jokeyler.html') 'text/html; charset=utf-8' 0
+        } elseif ($path -eq '/jokey-matris' -or $path -eq '/jokey-matris.html') {
+            Send-File $stream (Join-Path $script:Root 'jokey-matris.html') 'text/html; charset=utf-8' 0
         } elseif ($path -eq '/turler.html') {
             Send-File $stream (Join-Path $script:Root 'turler.html') 'text/html; charset=utf-8' 0
         } elseif ($path -eq '/tam') {

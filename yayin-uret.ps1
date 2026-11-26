@@ -258,10 +258,28 @@ foreach ($tip in $tipler.Keys) {
     Gecen 'istatistik'
 }
 
+# Jokey x hipodrom matrisi: 10 hipodromun yillik tablosu statik olarak yazilir.
+# Yayinda bu dosyalar dogrudan okunur; tarayici TJK'ya gitmez.
+try {
+    $jYil = (Get-Date).Year.ToString()
+    foreach ($sid in @('3','5','2','1','4','10','6','7','8','9')) {
+        if (-not (ButceVar)) { Log "butce doldu, jokey matrisi kismi yayinlanacak"; break }
+        $tab = @(Get-JockeyTable $sid $jYil)
+        if (-not $tab.Count -and $ButceVar) { $tab = @(Get-JockeyTable $sid '-1') }
+        if ($tab.Count) {
+            $obj = [pscustomobject]@{ SehirId=$sid; Yil=$jYil; Jokeyler=@($tab) }
+            $jf = Join-Path $veri ("jokey-tablo-$jYil-$sid.json")
+            [System.IO.File]::WriteAllText($jf, ($obj | ConvertTo-Json -Depth 8 -Compress), (New-Object System.Text.UTF8Encoding($false)))
+        }
+        Gecen 'jokey-matris'
+    }
+    Log ("jokey matrisi yazildi: " + $jYil)
+} catch { Log ("jokey matrisi atlandi: " + $_.Exception.Message) }
+
 if ($SadeceVeri) { Log "sadece veri istendi, HTML atlandi"; return }
 
 # --- statik sayfalar ---
-foreach ($f in @('turler.html', 'jokeyler.html', 'sw.js', 'manifest.webmanifest', 'logo.png')) {
+foreach ($f in @('turler.html', 'jokeyler.html', 'jokey-matris.html', 'sw.js', 'manifest.webmanifest', 'logo.png')) {
     $kaynak = Join-Path $root $f
     if (Test-Path $kaynak) { Copy-Item $kaynak (Join-Path $OutDir $f) -Force }
     else { Log ("uyari: $f bulunamadi, atlandi") }
@@ -278,6 +296,7 @@ if(p==='/api/gun'){var tt=q.searchParams.get('tarih')||'',yd=q.searchParams.get(
 else if(p==='/api/turler')u='veri/turler.json';
 else if(p==='/api/sehirler')u='veri/sehirler.json';
 else if(p==='/api/jokeyler'){var s=q.searchParams.get('sehir')||'-1',y=q.searchParams.get('yil')||new Date().getFullYear();u='veri/jokey-'+s+'-'+y+'.json';}
+else if(p==='/api/jokey-tablo'){var s2=q.searchParams.get('sehir')||'-1',y2=q.searchParams.get('yil')||new Date().getFullYear();u='veri/jokey-tablo-'+y2+'-'+s2+'.json';}
 else if(p==='/api/istatistik'){var t=(q.searchParams.get('tip')||'').split('/')[0].trim(),g=q.searchParams.get('grup')||'',n=q.searchParams.get('n')||'50',se=q.searchParams.get('sehir')||'-1',me=q.searchParams.get('mesafe')||'',ci=q.searchParams.get('cins')||'';u='veri/istatistik-'+(t+'|'+g+'|'+n+'|'+se+'|'+me+'|'+ci).replace(/[^A-Za-z0-9]+/g,'_')+'.json';}
 else if(p==='/api/analiz'){var k=(q.searchParams.get('kosu')||'').replace(/[^A-Za-z0-9_-]/g,'_');u='veri/analiz-'+k+'.json';}
 }}catch(e){}return of(u,o);};})();
@@ -301,6 +320,7 @@ function Add-Shim([string]$path) {
 }
 Add-Shim (Join-Path $OutDir 'turler.html')
 Add-Shim (Join-Path $OutDir 'jokeyler.html')
+Add-Shim (Join-Path $OutDir 'jokey-matris.html')
 if (Test-Path (Join-Path $root 'icons')) { Copy-Item (Join-Path $root 'icons') $OutDir -Recurse -Force }
 
 # hizli=$true: gomulu ilk veri de hizli payload olsun. Tam veri (hizli=$false)
