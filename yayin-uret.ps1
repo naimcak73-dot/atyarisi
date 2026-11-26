@@ -276,28 +276,50 @@ foreach ($tip in $adayTipler) {
 # Yayinda bu dosyalar dogrudan okunur; tarayici TJK'ya gitmez.
 try {
     $jYil = (Get-Date).Year.ToString()
-    $yazilan = 0
-    foreach ($sid in @('3','5','2','1','4','10','6','7','8','9')) {
-        if (-not (ButceVar)) { Log "butce doldu, jokey matrisi kismi yayinlanacak"; break }
-        $tab = @(Get-JockeyTable $sid $jYil)
-        if (-not $tab.Count -and $ButceVar) { $tab = @(Get-JockeyTable $sid '-1') }
-        if ($tab.Count) {
-            $obj = [pscustomobject]@{ SehirId=$sid; Yil=$jYil; Jokeyler=@($tab) }
-            $jf = Join-Path $veri ("jokey-tablo-$jYil-$sid.json")
-            [System.IO.File]::WriteAllText($jf, ($obj | ConvertTo-Json -Depth 8 -Compress), (New-Object System.Text.UTF8Encoding($false)))
-            $yazilan++
+    $sidler = @('3','5','2','1','4','10','6','7','8','9')
+    $kokVeri = Join-Path $root 'veri'
+    if (-not (Test-Path $kokVeri)) { New-Item -ItemType Directory -Path $kokVeri -Force | Out-Null }
+    $metaF = Join-Path $kokVeri 'jokey-yillar.json'
+    $bugun = (Get-Date).ToString('yyyy-MM-dd')
+    $meta = $null
+    if (Test-Path $metaF) { try { $meta = [IO.File]::ReadAllText($metaF, [Text.Encoding]::UTF8) | ConvertFrom-Json } catch {} }
+    $mevcut = 0
+    foreach ($sid in $sidler) { if (Test-Path (Join-Path $kokVeri ("jokey-tablo-$jYil-$sid.json"))) { $mevcut++ } }
+    $tam = ($meta -and [string]$meta.Tarih -eq $bugun -and $mevcut -eq $sidler.Count)
+
+    if ($tam) {
+        # Bugün zaten üretilmiş: TJK'ya 10 istek daha atmadan depodan kopyala.
+        foreach ($sid in $sidler) { Copy-Item (Join-Path $kokVeri ("jokey-tablo-$jYil-$sid.json")) (Join-Path $veri ("jokey-tablo-$jYil-$sid.json")) -Force }
+        Copy-Item $metaF (Join-Path $veri 'jokey-yillar.json') -Force
+        Log ("jokey matrisi bugun hazir, depodan kopyalandi (" + $mevcut + "/10)")
+    } else {
+        $yazilan = 0
+        foreach ($sid in $sidler) {
+            if (-not (ButceVar)) { Log "butce doldu, jokey matrisi kismi yayinlanacak"; break }
+            $tab = @(Get-JockeyTable $sid $jYil)
+            if (-not $tab.Count -and $ButceVar) { $tab = @(Get-JockeyTable $sid '-1') }
+            if ($tab.Count) {
+                $obj = [pscustomobject]@{ SehirId=$sid; Yil=$jYil; Jokeyler=@($tab) }
+                $json = ($obj | ConvertTo-Json -Depth 8 -Compress)
+                [System.IO.File]::WriteAllText((Join-Path $kokVeri ("jokey-tablo-$jYil-$sid.json")), $json, (New-Object System.Text.UTF8Encoding($false)))
+                [System.IO.File]::WriteAllText((Join-Path $veri ("jokey-tablo-$jYil-$sid.json")), $json, (New-Object System.Text.UTF8Encoding($false)))
+                $yazilan++
+            }
+            Gecen 'jokey-matris'
         }
-        Gecen 'jokey-matris'
+        # Sayfa yıl listesini bu dosyadan kurar; Tarih, gunluk atlamayi saglar.
+        $metaObj = [pscustomobject]@{ Yillar=@($jYil); Hipodrom=$yazilan; Tarih=$bugun }
+        $mj = ($metaObj | ConvertTo-Json -Compress)
+        [System.IO.File]::WriteAllText($metaF, $mj, (New-Object System.Text.UTF8Encoding($false)))
+        [System.IO.File]::WriteAllText((Join-Path $veri 'jokey-yillar.json'), $mj, (New-Object System.Text.UTF8Encoding($false)))
+        Log ("jokey matrisi yazildi: " + $jYil + " (" + $yazilan + "/10 hipodrom)")
     }
-    # Sayfa yıl listesini bu dosyadan kurar: yayında olmayan yıl hiç görünmez.
-    YazJson (Join-Path $veri 'jokey-yillar.json') ([pscustomobject]@{ Yillar=@($jYil); Hipodrom=$yazilan })
-    Log ("jokey matrisi yazildi: " + $jYil + " (" + $yazilan + "/10 hipodrom)")
 } catch { Log ("jokey matrisi atlandi: " + $_.Exception.Message) }
 
 if ($SadeceVeri) { Log "sadece veri istendi, HTML atlandi"; return }
 
 # --- statik sayfalar ---
-foreach ($f in @('turler.html', 'jokeyler.html', 'jokey-matris.html', 'sw.js', 'manifest.webmanifest', 'logo.webp', 'logo.png')) {
+foreach ($f in @('turler.html', 'jokeyler.html', 'jokey-matris.html', 'sw.js', 'manifest.webmanifest', 'logo-kucuk.webp', 'logo.webp', 'logo.png')) {
     $kaynak = Join-Path $root $f
     if (Test-Path $kaynak) { Copy-Item $kaynak (Join-Path $OutDir $f) -Force }
     else { Log ("uyari: $f bulunamadi, atlandi") }

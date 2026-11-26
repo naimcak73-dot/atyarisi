@@ -154,7 +154,7 @@ async function yilDoldur(){
 }
 function minDoldur(){
   el('mins').innerHTML=[30,50,100,200].map(function(v){
-    return '<span class="chip'+(v===MIN?' sel':'')+'" data-min="'+v+'">'+v+'+ koşu</span>';
+    return '<span class="chip'+(v===MIN?' sel':'')+'" role="button" tabindex="0" data-min="'+v+'">'+v+'+ koşu</span>';
   }).join('');
 }
 
@@ -305,6 +305,11 @@ el('mins').onclick = function(e){
   ciz();
 };
 el('sira').onchange = ciz;
+document.addEventListener('keydown', function(e){
+  if(e.key!=='Enter' && e.key!==' ') return;
+  var t=e.target;
+  if(t && t.classList && t.classList.contains('chip') && t.getAttribute('tabindex')==='0'){ e.preventDefault(); t.click(); }
+});
 el('yil').onchange = function(){ YIL = el('yil').value; SEC=null; yukle(false); };
 el('yenile').onclick = function(){
   try { Object.keys(localStorage).forEach(function(k){ if(k.indexOf('jm_')===0) localStorage.removeItem(k); }); } catch(e){}

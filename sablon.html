@@ -211,7 +211,7 @@ aside::-webkit-scrollbar-thumb{background:#9aa7b4;border-radius:5px;border:1px s
 <header><div class="wrap">
   <div class="ust">
     <div class="logoKutu" id="logoKutu" title="Logo eklemek/değiştirmek için tıkla (sağ tık: kaldır)">
-      <img id="logoImg" src="logo.webp" alt="Naim Baba">
+      <img id="logoImg" src="logo-kucuk.webp" alt="Naim Baba">
       <span id="logoYazi">LOGO<br><small>tıkla · ekle</small></span>
       <input type="file" id="logoDosya" accept="image/*" hidden>
     </div>
@@ -324,7 +324,9 @@ function renderSub(){
   document.getElementById('sub').textContent =
     `Tarih: ${d.Tarih}${gunAdi(d.Tarih)} · ${label}` + (d.Hava ? ` · ${d.Hava}` : '') + ` · Dönem: ${DONEM} · Üretim: ${DATA.Uretim}`
     + (DATA.Uyari ? ` · ⚠ ${DATA.Uyari}` : '')
-    + ((DATA.Bilgi && !DATA.Uyari) ? ` · ⓘ ${DATA.Bilgi}` : '')
+    + (DATA.__api__ === false
+        ? ' · site saatlik güncellenir'
+        : ((DATA.Bilgi && !DATA.Uyari) ? ` · ⓘ ${DATA.Bilgi}` : ''))
     + ' · sürüm 24.11-4';
 }
 
@@ -1305,10 +1307,12 @@ document.addEventListener('visibilitychange', function(){
   if(!kutu||!img||!dosya) return;
   var varsayilan=img.getAttribute('src')||'';
   var gomulu=window.AT_LOGO||'', kilit=!!window.AT_LOGO_KILIT;
-  var pngYedek=false;
+  var yedekAdim=0;
   img.addEventListener('error', function(){
-    // WebP açamayan eski tarayıcıda PNG'ye düş (varsa); o da yoksa yer tutucu.
-    if(!pngYedek && /\.webp(\?|$)/i.test(img.getAttribute('src')||'')){ pngYedek=true; img.src='logo.png'; return; }
+    // Küçük WebP → büyük WebP → PNG → yer tutucu
+    var s=img.getAttribute('src')||'';
+    if(yedekAdim===0 && /logo-kucuk\.webp/i.test(s)){ yedekAdim=1; img.src='logo.webp'; return; }
+    if(yedekAdim<2 && /\.webp(\?|$)/i.test(s)){ yedekAdim=2; img.src='logo.png'; return; }
     img.hidden=true; yazi.hidden=false; kutu.style.borderStyle='dashed';
   });
   function uygula(src){

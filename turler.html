@@ -116,7 +116,7 @@ function cizTurler(){
   });
   if(!liste.length){ el('chips').innerHTML='<span class="spin">Eşleşen tür yok.</span>'; return; }
   el('chips').innerHTML = liste.map(function(t){
-    return '<span class="chip'+(SEC===t.Ad?' sel':'')+'" data-tip="'+esc(t.Ad)+'">'+esc(t.Ad)+'<span class="dot'+(t.Hazir?'':' no')+'" title="'+(t.Hazir?'İstatistik hazır':'İstatistik hazırlanacak')+'"></span></span>';
+    return '<span class="chip'+(SEC===t.Ad?' sel':'')+'" role="button" tabindex="0" data-tip="'+esc(t.Ad)+'">'+esc(t.Ad)+'<span class="dot'+(t.Hazir?'':' no')+'" title="'+(t.Hazir?'İstatistik hazır':'İstatistik hazırlanacak')+'"></span></span>';
   }).join('');
   Array.prototype.forEach.call(el('chips').querySelectorAll('.chip'), function(c){
     c.onclick = function(){ secTur(c.getAttribute('data-tip')); };
@@ -154,8 +154,8 @@ katYukle();
 function cizKatChips(){
   if(!el('katchips')) return;
   var list = (KAT_LIST && KAT_LIST.length) ? KAT_LIST : KAT_FALLBACK;
-  var h = '<span class="chip'+(GRUP===''?' sel':'')+'" data-k="">Tümü</span>';
-  list.forEach(function(a){ h += '<span class="chip'+(GRUP===a?' sel':'')+'" data-k="'+esc(a)+'" title="'+esc(a)+'">'+esc(katEtiket(a))+'</span>'; });
+  var h = '<span class="chip'+(GRUP===''?' sel':'')+'" role="button" tabindex="0" data-k="">Tümü</span>';
+  list.forEach(function(a){ h += '<span class="chip'+(GRUP===a?' sel':'')+'" role="button" tabindex="0" data-k="'+esc(a)+'" title="'+esc(a)+'">'+esc(katEtiket(a))+'</span>'; });
   el('katchips').innerHTML = h;
   Array.prototype.forEach.call(el('katchips').querySelectorAll('.chip'), function(c){
     c.onclick = function(){
@@ -230,8 +230,14 @@ function satirlar(){
   });
 }
 
-function fbtn(kind,val,label){  return '<span class="btn'+(F[kind]===val?' sel':'')+'" data-k="'+kind+'" data-v="'+esc(val)+'">'+esc(label)+'</span>';
+function fbtn(kind,val,label){  return '<span class="btn'+(F[kind]===val?' sel':'')+'" role="button" tabindex="0" data-k="'+kind+'" data-v="'+esc(val)+'">'+esc(label)+'</span>';
 }
+// Chip'ler klavyeyle de çalışsın (Enter/Space = tık).
+document.addEventListener('keydown', function(e){
+  if(e.key!=='Enter' && e.key!==' ') return;
+  var t=e.target;
+  if(t && t.classList && (t.classList.contains('chip')||t.classList.contains('btn')) && t.getAttribute('tabindex')==='0'){ e.preventDefault(); t.click(); }
+});
 
 function yorum(n, fav, yuk, dus, kilo, yas){
   if(!n) return '';
