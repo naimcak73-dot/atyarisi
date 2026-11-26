@@ -134,11 +134,23 @@ function lsGet(y){
 }
 function lsSet(y,d){ try { localStorage.setItem(cacheKey(y), JSON.stringify({t:Date.now(),d:d})); } catch(e){} }
 
-function yilDoldur(){
-  var y=new Date().getFullYear(), h='';
-  for(var i=0;i<6;i++){ h+='<option value="'+(y-i)+'">'+(y-i)+'</option>'; }
-  h+='<option value="-1">Tüm yıllar (ağır)</option>';
-  el('yil').innerHTML=h; YIL=String(y); el('yil').value=YIL;
+async function yilDoldur(){
+  var yeni = new Date().getFullYear(), yillar = [], yayin = false;
+  // Statik yayında yıl listesi veri/jokey-yillar.json'dan gelir: olmayan yıl
+  // seçilemez, "HTTP 404" hatası çıkmaz. Yerelde dosya yoktur → tüm yıllar.
+  try{
+    var r = await fetch('veri/jokey-yillar.json', {cache:'no-store'});
+    if(r.ok){
+      var o = await r.json();
+      if(o && o.Yillar && o.Yillar.length){ yillar = o.Yillar.map(String); yayin = true; }
+    }
+  }catch(e){}
+  if(!yillar.length){ for(var i=0;i<6;i++){ yillar.push(String(yeni-i)); } }
+  var h = yillar.map(function(y){ return '<option value="'+y+'">'+y+'</option>'; }).join('');
+  if(!yayin) h += '<option value="-1">Tüm yıllar (ağır)</option>';
+  el('yil').innerHTML = h;
+  YIL = (yillar.indexOf(String(yeni)) >= 0) ? String(yeni) : yillar[0];
+  el('yil').value = YIL;
 }
 function minDoldur(){
   el('mins').innerHTML=[30,50,100,200].map(function(v){
@@ -299,6 +311,6 @@ el('yenile').onclick = function(){
   SEC=null; yukle(true);
 };
 
-yilDoldur(); minDoldur(); yukle(false);
+yilDoldur().then(function(){ minDoldur(); yukle(false); });
 </script>
 </body></html>

@@ -25,13 +25,13 @@
   header{position:sticky;top:0;z-index:20;background:var(--bg);border-bottom:1px solid var(--line);padding:12px 16px}
   /* Logo: sol tarafta dikey kutu; baslik + alt bilgi + Koşu türleri satiri saginda kalir */
   [hidden]{display:none!important}
-  .ust{display:flex;gap:12px;align-items:stretch}
+  .ust{display:flex;gap:12px;align-items:flex-start}
   .ustSag{flex:1 1 auto;min-width:0}
-  .logoKutu{flex:0 0 auto;width:118px;min-height:84px;display:flex;align-items:center;justify-content:center;
+  .logoKutu{flex:0 0 auto;width:118px;height:84px;display:flex;align-items:center;justify-content:center;
     border:1.5px dashed var(--line);border-radius:10px;background:var(--card);color:var(--muted);
-    cursor:pointer;overflow:hidden;padding:4px;text-align:center;font-size:10px;line-height:1.2;letter-spacing:.04em;user-select:none}
+    cursor:pointer;overflow:hidden;padding:3px;text-align:center;font-size:10px;line-height:1.2;letter-spacing:.04em;user-select:none}
   .logoKutu:hover{border-color:var(--accent);color:var(--ink)}
-  .logoKutu img{max-width:100%;max-height:100%;object-fit:contain;display:block}
+  .logoKutu img{width:100%;height:100%;object-fit:cover;object-position:center 35%;display:block;border-radius:7px}
   .logoKutu small{font-size:9px;opacity:.8}
   .wrap{max-width:1400px;margin:0 auto}
   h1{font-size:20px;margin:0 0 2px}
@@ -199,7 +199,7 @@ aside::-webkit-scrollbar-thumb{background:#9aa7b4;border-radius:5px;border:1px s
     .datenav .dtlbl{min-width:118px;font-size:12.5px}
     .datenav button{padding:6px 9px}
     .ust{gap:8px}
-    .logoKutu{width:64px;min-height:70px;font-size:9px}
+    .logoKutu{width:86px;height:58px;font-size:9px}
     .ustSag h1{font-size:17px}
     .ustSag .sub{font-size:12px}
     .ustSag .hrow{gap:6px}
@@ -211,7 +211,7 @@ aside::-webkit-scrollbar-thumb{background:#9aa7b4;border-radius:5px;border:1px s
 <header><div class="wrap">
   <div class="ust">
     <div class="logoKutu" id="logoKutu" title="Logo eklemek/değiştirmek için tıkla (sağ tık: kaldır)">
-      <img id="logoImg" src="logo.png" alt="Naim Baba">
+      <img id="logoImg" src="logo.webp" alt="Naim Baba">
       <span id="logoYazi">LOGO<br><small>tıkla · ekle</small></span>
       <input type="file" id="logoDosya" accept="image/*" hidden>
     </div>
@@ -499,22 +499,32 @@ async function istatistikHesapla(kodu){
       race.Istatistik=s; OPEN_STATS[String(kodu)]=true; hideBanner(); render(); return;
     }catch(e){
       const m=((e&&e.message)||'hata');
-      // Statik yayında bu koşu türü için istatistik dosyası olmayabilir (404/503):
-      // önce mesafe/cinsiyet süzmesiz genel dosyayı dene, sonra bilgi göster.
+      // Statik yayında istenen dosya olmayabilir (404/503). Kademeli geri düş:
+      // 1) mesafe/cinsiyet süzmesiz (aynı kategori)  2) kategorisiz tür geneli.
       if(/HTTP (404|503)/.test(m)){
-        try{
-          const sel2=race._statSel||{};
-          const gr3=(sel2.grup!==undefined)?sel2.grup:(race.Grup||'');
-          const r2=await fetch('/api/istatistik?tip='+encodeURIComponent(tip)+'&grup='+encodeURIComponent(gr3)+'&n=50&sehir=-1');
-          if(r2.ok){
-            const s2=await r2.json();
-            if(s2 && !s2.Hata && !s2.Hazirlaniyor){
-              race.Istatistik=s2; OPEN_STATS[String(kodu)]=true; hideBanner(); render(); return;
+        const sel2=race._statSel||{};
+        const gr3=(sel2.grup!==undefined)?sel2.grup:(race.Grup||'');
+        const adaylar=[
+          { g: gr3, not: 'Bu kategori için ayrı istatistik yayında yok; tüm kategoriler gösteriliyor.' },
+          { g: '',  not: 'Bu koşu türünün ayrıntılı istatistiği yayında yok; tür geneli gösteriliyor.' }
+        ];
+        for(let ai=0; ai<adaylar.length; ai++){
+          try{
+            const a=adaylar[ai];
+            const r2=await fetch('/api/istatistik?tip='+encodeURIComponent(tip)+'&grup='+encodeURIComponent(a.g)+'&n=50&sehir=-1');
+            if(r2.ok){
+              const s2=await r2.json();
+              if(s2 && !s2.Hata && !s2.Hazirlaniyor){
+                race.Istatistik=s2; OPEN_STATS[String(kodu)]=true; hideBanner(); render();
+                ensureBanner().innerHTML='<span class="mut">'+esc(a.not)+'</span>';
+                setTimeout(function(){ try{ hideBanner(); }catch(_){} }, 5000);
+                return;
+              }
             }
-          }
-        }catch(_){}
-        ensureBanner().innerHTML='<span class="mut">Bu koşu için kategori istatistiği yayında yok; koşu bilgileri gösteriliyor.</span>';
-        setTimeout(function(){ try{ hideBanner(); }catch(_){} }, 4000);
+          }catch(_){}
+        }
+        ensureBanner().innerHTML='<span class="mut">Bu koşu türü için geçmiş istatistik henüz yayınlanmadı; TJK verisi alındığında otomatik eklenecek.</span>';
+        setTimeout(function(){ try{ hideBanner(); }catch(_){} }, 6000);
         return;
       }
       showError('İstatistik alınamadı ('+m+').', DATA.TarihISO); return;
@@ -1295,7 +1305,12 @@ document.addEventListener('visibilitychange', function(){
   if(!kutu||!img||!dosya) return;
   var varsayilan=img.getAttribute('src')||'';
   var gomulu=window.AT_LOGO||'', kilit=!!window.AT_LOGO_KILIT;
-  img.addEventListener('error', function(){ img.hidden=true; yazi.hidden=false; kutu.style.borderStyle='dashed'; });
+  var pngYedek=false;
+  img.addEventListener('error', function(){
+    // WebP açamayan eski tarayıcıda PNG'ye düş (varsa); o da yoksa yer tutucu.
+    if(!pngYedek && /\.webp(\?|$)/i.test(img.getAttribute('src')||'')){ pngYedek=true; img.src='logo.png'; return; }
+    img.hidden=true; yazi.hidden=false; kutu.style.borderStyle='dashed';
+  });
   function uygula(src){
     if(src){ img.src=src; img.hidden=false; yazi.hidden=true; kutu.style.borderStyle='solid'; }
     else { img.removeAttribute('src'); img.hidden=true; yazi.hidden=false; kutu.style.borderStyle='dashed'; }

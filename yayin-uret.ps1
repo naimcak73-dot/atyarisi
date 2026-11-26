@@ -240,8 +240,22 @@ if ($payload) {
 }
 
 # eksik istatistikler (sinirli sayida, kutuphaneye de yazilir)
+# SIRA: once bugun kosulan turler, sonra TUM temel turler (Turkiye geneli).
+# Boylece yayindaki "istatistik yok" durumu gunler degil, birkac kosuda kapanir.
 $statSay = 0
-foreach ($tip in $tipler.Keys) {
+$adayTipler = New-Object System.Collections.ArrayList
+foreach ($t in @($tipler.Keys)) { if ($t) { [void]$adayTipler.Add([string]$t) } }
+if ($script:queryOptions -and $script:queryOptions.KosuCinsi) {
+    foreach ($o in @($script:queryOptions.KosuCinsi)) {
+        $ad = (([string]$o.Ad) -split '/')[0].Trim()
+        if (-not $ad -or [string]$o.Id -eq '-1') { continue }
+        # TJK'da karsiligi olmayan / pist adi olan kayitlar
+        if ($ad -match '^(YurtDışıBoş|YurtDisiBos|Tapeta)$') { continue }
+        if (-not $adayTipler.Contains($ad)) { [void]$adayTipler.Add($ad) }
+    }
+}
+Log ("istatistik adaylari: {0} (bugun {1} + tum turler)" -f $adayTipler.Count, @($tipler.Keys).Count)
+foreach ($tip in $adayTipler) {
     if ($statSay -ge $MaxStats) { break }
     if (-not (ButceVar)) { Log "butce doldu, istatistik hesaplama atlandi"; break }
     $dosya = Get-StatsFile $tip '' 50 '-1'
@@ -262,6 +276,7 @@ foreach ($tip in $tipler.Keys) {
 # Yayinda bu dosyalar dogrudan okunur; tarayici TJK'ya gitmez.
 try {
     $jYil = (Get-Date).Year.ToString()
+    $yazilan = 0
     foreach ($sid in @('3','5','2','1','4','10','6','7','8','9')) {
         if (-not (ButceVar)) { Log "butce doldu, jokey matrisi kismi yayinlanacak"; break }
         $tab = @(Get-JockeyTable $sid $jYil)
@@ -270,16 +285,19 @@ try {
             $obj = [pscustomobject]@{ SehirId=$sid; Yil=$jYil; Jokeyler=@($tab) }
             $jf = Join-Path $veri ("jokey-tablo-$jYil-$sid.json")
             [System.IO.File]::WriteAllText($jf, ($obj | ConvertTo-Json -Depth 8 -Compress), (New-Object System.Text.UTF8Encoding($false)))
+            $yazilan++
         }
         Gecen 'jokey-matris'
     }
-    Log ("jokey matrisi yazildi: " + $jYil)
+    # Sayfa yıl listesini bu dosyadan kurar: yayında olmayan yıl hiç görünmez.
+    YazJson (Join-Path $veri 'jokey-yillar.json') ([pscustomobject]@{ Yillar=@($jYil); Hipodrom=$yazilan })
+    Log ("jokey matrisi yazildi: " + $jYil + " (" + $yazilan + "/10 hipodrom)")
 } catch { Log ("jokey matrisi atlandi: " + $_.Exception.Message) }
 
 if ($SadeceVeri) { Log "sadece veri istendi, HTML atlandi"; return }
 
 # --- statik sayfalar ---
-foreach ($f in @('turler.html', 'jokeyler.html', 'jokey-matris.html', 'sw.js', 'manifest.webmanifest', 'logo.png')) {
+foreach ($f in @('turler.html', 'jokeyler.html', 'jokey-matris.html', 'sw.js', 'manifest.webmanifest', 'logo.webp', 'logo.png')) {
     $kaynak = Join-Path $root $f
     if (Test-Path $kaynak) { Copy-Item $kaynak (Join-Path $OutDir $f) -Force }
     else { Log ("uyari: $f bulunamadi, atlandi") }

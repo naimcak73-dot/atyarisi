@@ -179,20 +179,42 @@ function secTur(tip){
   yukle(0);
 }
 
-function yukle(deneme){
-  el('durum').style.display = 'block';
-  el('durum').textContent = deneme ? ('Bu tür ilk kez hesaplanıyor — TJK geçmişi taranıyor ('+Math.round(deneme*5)+' sn). Sayfa kendiliğinden dolacak.') : 'Yükleniyor…';
+async function yukle(deneme){
+  var dur = el('durum');
+  dur.style.display = 'block';
+  dur.textContent = deneme ? ('Bu tür ilk kez hesaplanıyor — TJK geçmişi taranıyor ('+Math.round(deneme*5)+' sn). Sayfa kendiliğinden dolacak.') : 'Yükleniyor…';
   el('icerik').style.display = 'none';
-  var u = '/api/istatistik?tip='+encodeURIComponent(SEC)+'&grup='+encodeURIComponent(GRUP)+'&mesafe='+encodeURIComponent(MES)+'&cins='+encodeURIComponent(CINS)+'&n='+N+'&sehir='+encodeURIComponent(SEHIR);
-  fetch(u).then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); }).then(function(s){
-    if(s.Hazirlaniyor){
-      if(deneme < 60){ setTimeout(function(){ yukle(deneme+1); }, 5000); return; }
-      el('durum').textContent = 'İstatistik hazırlanıyor; birkaç dakika sonra tekrar dene.';
+  // Statik yayında istenen dosya olmayabilir: kademeli geri düş.
+  //   1) istenen hipodrom + kategori   2) Tüm Türkiye + kategori   3) Tüm Türkiye + tüm kategoriler
+  var adaylar = [
+    { sehir: SEHIR, grup: GRUP, mes: MES, cins: CINS, not: '' },
+    { sehir: '-1',  grup: GRUP, mes: '',  cins: '',   not: 'Bu hipodrom için ayrı istatistik yayında yok; Tüm Türkiye gösteriliyor.' },
+    { sehir: '-1',  grup: '',   mes: '',  cins: '',   not: 'Bu kategori için ayrı dosya yayında yok; tüm kategoriler gösteriliyor.' }
+  ];
+  for (var i = 0; i < adaylar.length; i++) {
+    var a = adaylar[i];
+    var u = '/api/istatistik?tip='+encodeURIComponent(SEC)+'&grup='+encodeURIComponent(a.grup)+'&mesafe='+encodeURIComponent(a.mes)+'&cins='+encodeURIComponent(a.cins)+'&n='+N+'&sehir='+encodeURIComponent(a.sehir);
+    try {
+      var r = await fetch(u);
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      var s = await r.json();
+      if (s.Hazirlaniyor) {
+        if (deneme < 60) { setTimeout(function(){ yukle(deneme + 1); }, 5000); return; }
+        dur.textContent = 'İstatistik hazırlanıyor; birkaç dakika sonra tekrar dene.';
+        return;
+      }
+      if (s.Hata) throw new Error(s.Hata);
+      S = s; F = { y: '', i: '', a: '' };
+      dur.style.display = 'none'; el('icerik').style.display = 'block'; ciz();
+      if (i > 0) { el('not').innerHTML = '<div class="mut" style="margin-bottom:6px">' + esc(a.not) + '</div>' + el('not').innerHTML; }
       return;
+    } catch (e) {
+      if (i === adaylar.length - 1) {
+        dur.textContent = 'Bu tür için istatistik henüz yayınlanmadı. TJK verisi alındığında otomatik eklenecek. (' + (e.message || 'hata') + ')';
+        return;
+      }
     }
-    if(s.Hata){ el('durum').textContent = s.Hata; return; }
-    S = s; F = {y:'', i:'', a:''}; el('durum').style.display = 'none'; el('icerik').style.display = 'block'; ciz();
-  }).catch(function(e){ el('durum').textContent = 'Veri alınamadı ('+(e.message||'hata')+').'; });
+  }
 }
 
 function satirlar(){
@@ -245,7 +267,7 @@ function ciz(){
     +'<div>En düşük HP <b>'+(hasF&&n?('%'+pct(dus,n)):'—')+'</b></div>'
     +'<div>Ort. sıklet <b>'+(kilo?(kilo+' kg'):'—')+'</b></div>'
     +'<div>Ort. yaş <b>'+(yas||'—')+'</b></div>';
-  el('kadro').textContent = 'Tam kadro: '+(S.KadroSayisi||0)+'/'+(S.KosuSayisi||0)+' koşu'+(S.Bayat?' · veri 24 saatten eski (tazeleniyor)':'');
+  el('kadro').textContent = 'Tam kadro: '+(S.KadroSayisi||0)+'/'+(S.KosuSayisi||0)+' koşu'+(S.Bayat?' · önbellekteki veri eski (arka planda tazeleniyor)':'');
   el('not').innerHTML = yorum(n, fav, yuk, dus, kilo, yas);
 
   var hps = rows.map(function(r){ return num(r.HP); }).filter(function(x){ return x!=null; });
