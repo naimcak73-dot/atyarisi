@@ -1,6 +1,6 @@
 param(
     [string]$OutDir = '',
-    [int]$MaxAnaliz = 12,
+    [int]$MaxAnaliz = 40,
     [int]$MaxStats = 2,
     [int]$ButceDk = 30,
     [switch]$CacheOnly,

@@ -184,7 +184,10 @@ aside::-webkit-scrollbar-thumb{background:#9aa7b4;border-radius:5px;border:1px s
   .racechips::-webkit-scrollbar-track{background:#222a33;border-radius:5px}
   .racechips::-webkit-scrollbar-thumb{background:#9aa7b4;border-radius:5px}
   .citybtn.yd{color:var(--muted)}
-  .turstat{margin:10px 0 4px;border:1px solid var(--line);border-radius:12px;padding:12px;background:var(--card)}
+  .turstat{margin:10px 0 4px;border:1px solid var(--line);border-radius:12px;padding:12px;background:var(--card);color:var(--ink)}
+  .turstat .small,.turstat .mut{color:var(--muted)}
+  .hazirbox{background:rgba(240,166,60,.12);border:1px solid rgba(240,166,60,.45);color:var(--ink);border-radius:10px;padding:10px 12px;font-size:12.5px;line-height:1.5}
+  .hazirbox b{color:var(--warn)}
   .turstat table{width:100%;border-collapse:collapse;font-size:12px}
   .turstat th,.turstat td{padding:5px 6px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap}
   .turstat th{color:var(--muted);font-size:11px;text-transform:uppercase}
@@ -1193,7 +1196,7 @@ async function turIstatistik(id, tip, sehirId, sadi, opt, grup){
     if(!r.ok) throw new Error('HTTP '+r.status);
     const s=await r.json();
     if(turSeq!==TUR_SEQ) return;
-    if(s.Hazirlaniyor){ body.innerHTML='<div class="small mut">İstatistik hazırlanıyor (TJK geçmişi taranıyor)… birkaç dakika içinde kendiliğinden dolacak.</div>'; setTimeout(function(){ turIstatistik(id,tip,sehirId,sadi,{sehir:st.sehir,n:st.n},grup); }, 8000); return; }
+    if(s.Hazirlaniyor){ body.innerHTML='<div class="hazirbox"><b>İstatistik hazırlanıyor…</b> TJK geçmişi taranıyor; birkaç dakika içinde kendiliğinden dolacak.</div>'; setTimeout(function(){ turIstatistik(id,tip,sehirId,sadi,{sehir:st.sehir,n:st.n},grup); }, 8000); return; }
     if(s.Hata) throw new Error(s.Hata);
     TUR_CACHE[key]=turOzet(s, st.sehir, sadi, st.n); body.innerHTML=TUR_CACHE[key];
   }catch(e){
