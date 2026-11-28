@@ -1,0 +1,334 @@
+<!doctype html>
+<html lang="tr"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0f1115">
+<title>Jokey × Hipodrom</title>
+<style>
+:root{--bg:#0f1115;--card:#171a21;--card2:#12151b;--line:#2a3140;--ink:#e8ecf1;--mut:#98a2b3;--acc:#4f8cff;--good:#3ecf8e;--warn:#f5a524}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{margin:0;font-family:system-ui,Segoe UI,Roboto,Arial;background:var(--bg);color:var(--ink);padding:12px 12px 40px;padding-bottom:calc(40px + env(safe-area-inset-bottom))}
+.wrap{max-width:1180px;margin:0 auto}
+a{color:var(--acc);text-decoration:none}
+.top{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px}
+h1{font-size:18px;margin:0;letter-spacing:.2px}
+h1 small{display:block;font-size:11.5px;color:var(--mut);font-weight:400;margin-top:3px;letter-spacing:0}
+.back{background:var(--card);border:1px solid var(--line);border-radius:999px;padding:7px 12px;font-size:12.5px;color:var(--ink);white-space:nowrap}
+.ctl{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:12px 0 4px}
+select{background:var(--card);color:var(--ink);border:1px solid var(--line);border-radius:10px;padding:9px 10px;font-size:13.5px}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chip{padding:8px 12px;border:1px solid var(--line);border-radius:999px;background:var(--card);font-size:12.5px;cursor:pointer;color:var(--ink);min-height:36px;display:flex;align-items:center}
+.chip.sel{background:var(--acc);border-color:var(--acc);color:#fff}
+.btn{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:9px 12px;color:var(--ink);font-size:13px;cursor:pointer;min-height:38px}
+.prog{margin:10px 0;font-size:12.5px;color:var(--mut);display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.pbar{flex:1;min-width:120px;height:6px;background:var(--card2);border:1px solid var(--line);border-radius:6px;overflow:hidden}
+.pbar i{display:block;height:100%;width:0;background:var(--acc);transition:width .25s}
+.err{color:var(--warn)}
+.note{background:var(--card2);border-left:3px solid var(--acc);border-radius:8px;padding:9px 12px;margin:10px 0;font-size:12.5px;line-height:1.55;color:#cfd6e2}
+.tblwrap{overflow:auto;border:1px solid var(--line);border-radius:12px;background:var(--card);margin-top:10px;-webkit-overflow-scrolling:touch}
+table{border-collapse:separate;border-spacing:0;font-size:12px;width:100%}
+th,td{padding:7px 8px;text-align:right;white-space:nowrap;border-bottom:1px solid var(--line)}
+th{color:var(--mut);font-size:10.5px;text-transform:uppercase;letter-spacing:.04em;position:sticky;top:0;background:var(--card);z-index:2}
+td:first-child,th:first-child{position:sticky;left:0;background:var(--card);text-align:left;z-index:3;min-width:132px;max-width:150px}
+tr.jrow{cursor:pointer}
+tr.jrow:active td{background:#1b2029}
+tr.jrow.sel td{background:#1d2633}
+tr.jrow.sel td:first-child{background:#1d2633}
+.jn{font-weight:600;font-size:12.5px;white-space:normal;line-height:1.25}
+.js{font-size:10.5px;color:var(--mut);font-weight:400}
+.cell{font-variant-numeric:tabular-nums}
+.zero{color:#4a5262}
+.tot{font-weight:600}
+.det{margin-top:14px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px}
+.det h2{font-size:15px;margin:0 0 2px}
+.det .sub{font-size:11.5px;color:var(--mut);margin-bottom:10px}
+.dtbl{width:100%;border-collapse:collapse;font-size:12px}
+.dtbl th,.dtbl td{padding:6px 7px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
+.dtbl th:first-child,.dtbl td:first-child{text-align:left}
+.idx{display:inline-block;padding:1px 7px;border-radius:999px;font-size:11px;font-weight:600}
+.idx.up{background:rgba(62,207,142,.14);color:var(--good)}
+.idx.dn{background:rgba(245,165,36,.14);color:var(--warn)}
+.mut{color:var(--mut)}
+.foot{margin-top:16px;font-size:11.5px;color:var(--mut);line-height:1.6}
+.legend{display:flex;gap:6px;align-items:center;font-size:11px;color:var(--mut);margin-top:8px}
+.legend i{width:14px;height:10px;border-radius:2px;display:inline-block;border:1px solid var(--line)}
+@media (max-width:480px){body{padding:10px 8px 36px}h1{font-size:16.5px}td:first-child,th:first-child{min-width:104px;max-width:112px}.jn{font-size:11.5px}th,td{padding:6px 6px}}
+</style></head>
+<body><script>
+(function(){var GL=["20261128","20261129","20261127"];var GYD=["20261124","20261125","20261126","20261127","20261128"];window.__GL__=GL;window.__GYD__=GYD;var of=window.fetch;window.fetch=function(u,o){try{if(typeof u==='string'&&u.indexOf('/api/')===0){var q=new URL(u,location.href),p=q.pathname;
+if(p==='/api/gun'){var tt=q.searchParams.get('tarih')||'',yd=q.searchParams.get('yabanci')==='1',is='';if(/^\d{4}-\d{2}-\d{2}$/.test(tt))is=tt.replace(/-/g,'');else if(/^\d{2}\/\d{2}\/\d{4}$/.test(tt)){var aa=tt.split('/');is=aa[2]+aa[1]+aa[0];}
+ if(yd){if(is&&GYD.indexOf(is)>=0)u='veri/gun-'+is+'-yd.json?t='+Date.now();else if(!is)u='veri/gun-yabanci.json?t='+Date.now();else u='veri/gun-yd-yok.json';}
+ else if(is){var d='veri/gun-'+is+'.json?t='+Date.now(),fb='veri/gun.json?t='+Date.now();if(GL.indexOf(is)>=0)u=d;else return of(d,o).then(function(r){return r.ok?r:of(fb,o);});}
+ else u='veri/gun.json?t='+Date.now();}
+else if(p==='/api/turler')u='veri/turler.json';
+else if(p==='/api/sehirler')u='veri/sehirler.json';
+else if(p==='/api/jokeyler'){var s=q.searchParams.get('sehir')||'-1',y=q.searchParams.get('yil')||new Date().getFullYear();u='veri/jokey-'+s+'-'+y+'.json';}
+else if(p==='/api/jokey-tablo'){var s2=q.searchParams.get('sehir')||'-1',y2=q.searchParams.get('yil')||new Date().getFullYear();u='veri/jokey-tablo-'+y2+'-'+s2+'.json';}
+else if(p==='/api/istatistik'){var t=(q.searchParams.get('tip')||'').split('/')[0].trim(),g=q.searchParams.get('grup')||'',n=q.searchParams.get('n')||'50',se=q.searchParams.get('sehir')||'-1',me=q.searchParams.get('mesafe')||'',ci=q.searchParams.get('cins')||'';u='veri/istatistik-'+(t+'|'+g+'|'+n+'|'+se+'|'+me+'|'+ci).replace(/[^A-Za-z0-9]+/g,'_')+'.json';}
+else if(p==='/api/analiz'){var k=(q.searchParams.get('kosu')||'').replace(/[^A-Za-z0-9_-]/g,'_');u='veri/analiz-'+k+'.json';}
+}}catch(e){}return of(u,o);};})();
+</script><div class="wrap">
+
+<div class="top">
+  <h1>Jokey × Hipodrom<small>Hipodroma göre galibiyet oranı ve ev sahibi endeksi</small></h1>
+  <a class="back" href="./">← Uygulama</a>
+</div>
+
+<div class="ctl">
+  <select id="yil"></select>
+  <div class="chips" id="mins"></div>
+  <select id="sira">
+    <option value="d1">Sıra: toplam galibiyet</option>
+    <option value="p1">Sıra: toplam 1.%</option>
+    <option value="kosu">Sıra: toplam koşu</option>
+    <option value="idx">Sıra: en iyi hipodrom endeksi</option>
+  </select>
+</div>
+
+<div class="prog">
+  <span id="durum">Hazırlanıyor…</span>
+  <div class="pbar"><i id="pfill"></i></div>
+  <button class="btn" id="yenile" title="Önbelleği temizleyip TJK'dan yeniden çeker">Yenile</button>
+</div>
+
+<div class="note">
+  Bir hücredeki sayı, jokeyin <b>o hipodromdaki 1. gelme yüzdesi</b>. Koyu yeşil = yüksek.
+  Endeks = hipodromdaki 1.% ÷ jokeyin genel 1.%. <b>100 üstü</b>: o hipodromu seviyor,
+  <b>altı</b>: ortalamasının altında. Hücrede en az 10 koşu, jokeyde en az 50 koşu şartı aranır;
+  küçük örnekler yanıltmasın diye boş bırakılır.
+</div>
+
+<div class="tblwrap" id="wrapTbl" hidden>
+  <table id="tbl">
+    <thead><tr id="thr"></tr></thead>
+    <tbody id="tb"></tbody>
+  </table>
+</div>
+
+<div id="det" class="det" hidden></div>
+
+<div class="legend">
+  <span>1.%:</span>
+  <i style="background:rgba(62,207,142,.08)"></i><span class="mut">düşük</span>
+  <i style="background:rgba(62,207,142,.25)"></i>
+  <i style="background:rgba(62,207,142,.45)"></i>
+  <i style="background:rgba(62,207,142,.7)"></i><span class="mut">yüksek</span>
+</div>
+
+<p class="foot">
+  Kaynak: TJK resmî jokey istatistikleri (yıllık, hipodrom bazlı). Veriler 12 saat
+  önbellekte tutulur; «Yenile» yalnız bu cihazdaki kopyayı siler.
+  Koşu türleri istatistiği: <a href="turler.html">koşu türleri</a> ·
+  <a href="jokeyler.html">jokey başarısı</a>
+</p>
+</div>
+
+<script>
+var SEHIRLER = [
+  {id:'3',ad:'İstanbul',k:'İST'},{id:'5',ad:'Ankara',k:'ANK'},{id:'2',ad:'İzmir',k:'İZM'},
+  {id:'1',ad:'Adana',k:'ADA'},{id:'4',ad:'Bursa',k:'BUR'},{id:'10',ad:'Antalya',k:'ANT'},
+  {id:'6',ad:'Şanlıurfa',k:'URF'},{id:'7',ad:'Elazığ',k:'ELA'},{id:'8',ad:'Diyarbakır',k:'DİY'},
+  {id:'9',ad:'Kocaeli',k:'KOC'}
+];
+var TAB = {};            // sehirId -> {Ad, Jokeyler}
+var SEC = null;          // secili jokey adi
+var MIN = 50;
+var YIL = '';
+var cacheKey = function(y){ return 'jm_v1_' + y; };
+
+function el(id){ return document.getElementById(id); }
+function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
+function norm(s){ return String(s||'').replace(/\s+/g,' ').trim(); }
+function pct(a,b){ return b ? Math.round(1000*a/b)/10 : null; }
+function fmt(v){ if(v==null||isNaN(v)) return '—'; var s=(v%1===0)? String(v) : Number(v).toFixed(1); return s.replace('.',','); }
+function key(name){ return norm(name).toLocaleUpperCase('tr-TR'); }
+
+function lsGet(y){
+  try { var s=localStorage.getItem(cacheKey(y)); if(!s) return null; var o=JSON.parse(s); if(!o||!o.t) return null; if(Date.now()-o.t>6*3600*1000) return null; return o.d; } catch(e){ return null; }
+}
+function lsSet(y,d){ try { localStorage.setItem(cacheKey(y), JSON.stringify({t:Date.now(),d:d})); } catch(e){} }
+
+async function yilDoldur(){
+  var yeni = new Date().getFullYear(), yillar = [], yayin = false;
+  // Statik yayında yıl listesi veri/jokey-yillar.json'dan gelir: olmayan yıl
+  // seçilemez, "HTTP 404" hatası çıkmaz. Yerelde dosya yoktur → tüm yıllar.
+  try{
+    var r = await fetch('veri/jokey-yillar.json', {cache:'no-store'});
+    if(r.ok){
+      var o = await r.json();
+      if(o && o.Yillar && o.Yillar.length){ yillar = o.Yillar.map(String); yayin = true; }
+    }
+  }catch(e){}
+  if(!yillar.length){ for(var i=0;i<6;i++){ yillar.push(String(yeni-i)); } }
+  var h = yillar.map(function(y){ return '<option value="'+y+'">'+y+'</option>'; }).join('');
+  if(!yayin) h += '<option value="-1">Tüm yıllar (ağır)</option>';
+  el('yil').innerHTML = h;
+  YIL = (yillar.indexOf(String(yeni)) >= 0) ? String(yeni) : yillar[0];
+  el('yil').value = YIL;
+}
+function minDoldur(){
+  el('mins').innerHTML=[30,50,100,200].map(function(v){
+    return '<span class="chip'+(v===MIN?' sel':'')+'" role="button" tabindex="0" data-min="'+v+'">'+v+'+ koşu</span>';
+  }).join('');
+}
+
+async function tabloGetir(cid,yil,force){
+  var ck = 'jm_tbl_' + yil + '_' + cid;
+  if(!force){ try { var s=localStorage.getItem(ck); if(s){ var o=JSON.parse(s); if(o && Date.now()-o.t<6*3600*1000 && o.d && o.d.length) return o.d; } } catch(e){} }
+  var r = await fetch('/api/jokey-tablo?sehir='+encodeURIComponent(cid)+'&yil='+encodeURIComponent(yil));
+  if(!r.ok) throw new Error('HTTP '+r.status);
+  var o = await r.json();
+  if(o.Hata) throw new Error(o.Mesaj || 'TJK yanıt vermedi');
+  var d = o.Jokeyler || [];
+  try { localStorage.setItem(ck, JSON.stringify({t:Date.now(),d:d})); } catch(e){}
+  return d;
+}
+
+async function yukle(force){
+  var yil = YIL;
+  el('wrapTbl').hidden = true; el('det').hidden = true;
+  el('pfill').style.width = '0%';
+  el('durum').className=''; el('durum').textContent = 'Hazırlanıyor…';
+
+  var onb = force ? null : lsGet(yil);
+  if(onb){ TAB = onb; }
+  else { TAB = {}; }
+
+  var eksik = SEHIRLER.filter(function(s){ return !TAB[s.id] || !TAB[s.id].Jokeyler || !TAB[s.id].Jokeyler.length; });
+  var top = SEHIRLER.length, done = top - eksik.length, hata = [];
+  function ilerle(txt){ el('pfill').style.width = Math.round(100*done/top)+'%'; el('durum').textContent = txt + ' (' + done + '/' + top + ')'; }
+  ilerle(eksik.length ? 'TJK’dan çekiliyor' : 'Hazır');
+
+  // ikişer ikişer çek (TJK'yı boğmadan)
+  var i = 0;
+  async function isci(){
+    while(i < eksik.length){
+      var s = eksik[i++];
+      try {
+        var j = await tabloGetir(s.id, yil, force);
+        TAB[s.id] = { Ad:s.ad, K:s.k, Jokeyler:j };
+      } catch(err){
+        hata.push(s.ad + ': ' + err.message);
+        TAB[s.id] = TAB[s.id] || { Ad:s.ad, K:s.k, Jokeyler:[] };
+      }
+      done++; ilerle(hata.length ? 'Bazı hipodromlar alınamadı' : 'TJK’dan çekiliyor');
+    }
+  }
+  await Promise.all([isci(), isci()]);
+  if(hata.length){
+    el('durum').innerHTML = '<span class="err">' + esc(hata.slice(0,2).join(' · ')) + '</span> — «Yenile» ile tekrar dene';
+  } else {
+    ilerle('Hazır');
+  }
+  if(!force) lsSet(yil, TAB);
+  ciz();
+}
+
+function birlesik(){
+  var map = {};
+  SEHIRLER.forEach(function(s){
+    var t = TAB[s.id]; if(!t) return;
+    (t.Jokeyler||[]).forEach(function(r){
+      var k = key(r.Jokey); if(!k) return;
+      var o = map[k];
+      if(!o){ o = map[k] = {Ad:norm(r.Jokey), Kosu:0, D1:0, D2:0, D3:0, Ilk5:0, Sehir:{}}; }
+      var kosu = +r.Kosu||0, d1 = +r.D1||0;
+      o.Kosu += kosu; o.D1 += d1; o.D2 += (+r.D2||0); o.D3 += (+r.D3||0);
+      o.Ilk5 += (+r.Ilk5||0);
+      if(!o.Sehir[s.id]) o.Sehir[s.id] = {Kosu:kosu, D1:d1, Ilk5:+r.Ilk5||0};
+    });
+  });
+  var arr = [];
+  for(var k in map){ var o = map[k]; o.P1 = pct(o.D1, o.Kosu); arr.push(o); }
+  return arr;
+}
+
+function ciz(){
+  var A = birlesik().filter(function(o){ return o.Kosu >= MIN; });
+  if(!A.length){ el('wrapTbl').hidden = true; el('durum').textContent='Bu eşikte jokey yok; eşiği düşür.'; return; }
+  var sira = el('sira').value;
+  A.forEach(function(o){
+    var best = 0;
+    SEHIRLER.forEach(function(s){
+      var c = o.Sehir[s.id]; if(!c || c.Kosu<10) return;
+      var p1 = pct(c.D1,c.Kosu); if(o.P1) best = Math.max(best, (p1||0)/o.P1);
+    });
+    o.Endeks = best;
+  });
+  if(sira==='d1') A.sort(function(a,b){ return b.D1-a.D1; });
+  else if(sira==='p1') A.sort(function(a,b){ return (b.P1||0)-(a.P1||0) || b.Kosu-a.Kosu; });
+  else if(sira==='kosu') A.sort(function(a,b){ return b.Kosu-a.Kosu; });
+  else A.sort(function(a,b){ return b.Endeks-a.Endeks || b.D1-a.D1; });
+
+  el('thr').innerHTML = '<th>Jokey</th>' + SEHIRLER.map(function(s){ return '<th>'+esc(s.k)+'</th>'; }).join('') +
+    '<th>Koşu</th><th>1.%</th>';
+  var maxP = 25;
+  A.forEach(function(o){ SEHIRLER.forEach(function(s){ var c=o.Sehir[s.id]; if(c&&c.Kosu>=10){ maxP=Math.max(maxP, pct(c.D1,c.Kosu)||0); } }); });
+
+  var h = '';
+  A.forEach(function(o){
+    h += '<tr class="jrow'+(SEC && key(SEC)===key(o.Ad)?' sel':'')+'" data-ad="'+esc(o.Ad)+'">';
+    h += '<td><div class="jn">'+esc(o.Ad)+'</div><div class="js">'+o.Kosu+' koşu · '+o.D1+' birincilik</div></td>';
+    SEHIRLER.forEach(function(s){
+      var c=o.Sehir[s.id];
+      if(!c || c.Kosu<10){ h += '<td class="cell zero">·</td>'; return; }
+      var p1 = pct(c.D1,c.Kosu)||0;
+      var a = Math.min(1, p1/(maxP*0.75)) * 0.62;
+      h += '<td class="cell" title="'+esc(s.ad)+': '+c.Kosu+' koşu, '+c.D1+' birincilik, ilk5 '+c.Ilk5+'" style="background:rgba(62,207,142,'+a.toFixed(2)+')">'+fmt(p1)+'</td>';
+    });
+    h += '<td class="cell tot">'+o.Kosu+'</td><td class="cell tot">'+fmt(o.P1)+'</td></tr>';
+  });
+  el('tb').innerHTML = h;
+  el('wrapTbl').hidden = false;
+
+  Array.prototype.forEach.call(document.querySelectorAll('tr.jrow'), function(tr){
+    tr.onclick = function(){ SEC = tr.getAttribute('data-ad'); detay(A); };
+  });
+  if(SEC) detay(A);
+}
+
+function detay(A){
+  var o = null; for(var i=0;i<A.length;i++){ if(key(A[i].Ad)===key(SEC)){ o=A[i]; break; } }
+  var d = el('det');
+  if(!o){ d.hidden = true; return; }
+  var rows = SEHIRLER.map(function(s){
+    var c = o.Sehir[s.id]; if(!c || !c.Kosu) return null;
+    var p1 = pct(c.D1,c.Kosu);
+    var idx = (c.Kosu>=10 && o.P1) ? Math.round(100*((p1||0)/o.P1)) : null;
+    return {ad:s.ad, kosu:c.Kosu, d1:c.D1, p1:p1, idx:idx};
+  }).filter(Boolean).sort(function(a,b){ return (b.p1||0)-(a.p1||0); });
+
+  var h = '<h2>'+esc(o.Ad)+'</h2><div class="sub">'+o.Kosu+' koşu · '+o.D1+' birincilik · genel 1.% '+fmt(o.P1)+'</div>';
+  h += '<table class="dtbl"><thead><tr><th>Hipodrom</th><th>Koşu</th><th>1.</th><th>1.%</th><th>Endeks</th></tr></thead><tbody>';
+  rows.forEach(function(r){
+    var cls = r.idx==null ? '' : (r.idx>=110 ? 'up' : (r.idx<=90 ? 'dn' : ''));
+    h += '<tr><td>'+esc(r.ad)+'</td><td>'+r.kosu+'</td><td>'+r.d1+'</td><td>'+fmt(r.p1)+'</td><td>'+
+      (r.idx==null ? '<span class="mut">—</span>' : '<span class="idx '+cls+'">'+r.idx+'</span>')+'</td></tr>';
+  });
+  h += '</tbody></table>';
+  h += '<p class="foot">Endeks yalnız hücrede 10+, jokeyde 50+ koşu varsa hesaplanır. Sağ üstteki «Yenile» TJK’dan yeni veri çeker.</p>';
+  d.innerHTML = h; d.hidden = false;
+  d.scrollIntoView({behavior:'smooth', block:'nearest'});
+}
+
+// olaylar
+el('mins').onclick = function(e){
+  var t = e.target.closest('[data-min]'); if(!t) return;
+  MIN = +t.getAttribute('data-min');
+  Array.prototype.forEach.call(el('mins').children, function(c){ c.classList.toggle('sel', c===t); });
+  ciz();
+};
+el('sira').onchange = ciz;
+document.addEventListener('keydown', function(e){
+  if(e.key!=='Enter' && e.key!==' ') return;
+  var t=e.target;
+  if(t && t.classList && t.classList.contains('chip') && t.getAttribute('tabindex')==='0'){ e.preventDefault(); t.click(); }
+});
+el('yil').onchange = function(){ YIL = el('yil').value; SEC=null; yukle(false); };
+el('yenile').onclick = function(){
+  try { Object.keys(localStorage).forEach(function(k){ if(k.indexOf('jm_')===0) localStorage.removeItem(k); }); } catch(e){}
+  SEC=null; yukle(true);
+};
+
+yilDoldur().then(function(){ minDoldur(); yukle(false); });
+</script>
+</body></html>

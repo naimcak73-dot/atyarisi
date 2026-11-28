@@ -1,0 +1,237 @@
+<!doctype html>
+<html lang="tr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Jokey Başarısı</title>
+<style>
+:root{--bg:#0f1115;--card:#171a21;--line:#2a3140;--ink:#e8ecf1;--mut:#98a2b3;--acc:#4f8cff}
+*{box-sizing:border-box}body{margin:0;font-family:system-ui,Segoe UI,Arial;background:var(--bg);color:var(--ink);padding:14px}
+.wrap{max-width:1000px;margin:0 auto}a{color:var(--acc);text-decoration:none}h1{font-size:19px;margin:0 0 10px}
+input,select{background:var(--card);color:var(--ink);border:1px solid var(--line);border-radius:9px;padding:9px 11px;font-size:14px}
+input:focus,select:focus{outline:none;border-color:var(--acc)}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px;margin-top:12px}
+.tblwrap{overflow:auto}.tbl{width:100%;border-collapse:collapse;font-size:12.5px}
+.tbl th,.tbl td{padding:7px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap}
+.tbl th{color:var(--mut);font-size:11px;text-transform:uppercase;cursor:pointer;user-select:none}
+.tbl th.sel{color:var(--acc)}
+.tbl td.n,.tbl th.n{text-align:right}
+.mut{color:var(--mut);font-size:12px}.spin{color:var(--mut);font-size:13px;padding:8px 0}
+.pill{display:inline-block;padding:2px 7px;border-radius:999px;background:#12151b;border:1px solid var(--line);font-size:11.5px;color:var(--mut)}
+.chip{display:inline-block;padding:5px 10px;border:1px solid var(--line);border-radius:8px;font-size:12.5px;color:var(--ink);background:var(--card);cursor:pointer}
+.chip.sel{background:var(--acc);border-color:var(--acc);color:#fff}
+.backfab{position:fixed;top:10px;right:10px;z-index:20;background:var(--acc);color:#fff;border-radius:999px;padding:7px 12px;font-size:12.5px;text-decoration:none;box-shadow:0 2px 8px rgba(0,0,0,.35)}
+/* Telefon: 2./3./4./5. sütunlar gizlenir; Jokey, Koşu, 1., İlk5%, Galibiyet% kalır */
+@media(max-width:640px){
+  body{padding:10px}
+  .tbl{font-size:12px}
+  .tbl th,.tbl td{padding:6px 5px}
+  .tbl th:nth-child(4),.tbl td:nth-child(4),
+  .tbl th:nth-child(5),.tbl td:nth-child(5),
+  .tbl th:nth-child(6),.tbl td:nth-child(6),
+  .tbl th:nth-child(7),.tbl td:nth-child(7){display:none}
+  .tbl td:first-child{max-width:150px;overflow:hidden;text-overflow:ellipsis}
+  .chip{padding:6px 9px;font-size:12px}
+}
+
+</style></head>
+<body><script>
+(function(){var GL=["20261128","20261129","20261127"];var GYD=["20261124","20261125","20261126","20261127","20261128"];window.__GL__=GL;window.__GYD__=GYD;var of=window.fetch;window.fetch=function(u,o){try{if(typeof u==='string'&&u.indexOf('/api/')===0){var q=new URL(u,location.href),p=q.pathname;
+if(p==='/api/gun'){var tt=q.searchParams.get('tarih')||'',yd=q.searchParams.get('yabanci')==='1',is='';if(/^\d{4}-\d{2}-\d{2}$/.test(tt))is=tt.replace(/-/g,'');else if(/^\d{2}\/\d{2}\/\d{4}$/.test(tt)){var aa=tt.split('/');is=aa[2]+aa[1]+aa[0];}
+ if(yd){if(is&&GYD.indexOf(is)>=0)u='veri/gun-'+is+'-yd.json?t='+Date.now();else if(!is)u='veri/gun-yabanci.json?t='+Date.now();else u='veri/gun-yd-yok.json';}
+ else if(is){var d='veri/gun-'+is+'.json?t='+Date.now(),fb='veri/gun.json?t='+Date.now();if(GL.indexOf(is)>=0)u=d;else return of(d,o).then(function(r){return r.ok?r:of(fb,o);});}
+ else u='veri/gun.json?t='+Date.now();}
+else if(p==='/api/turler')u='veri/turler.json';
+else if(p==='/api/sehirler')u='veri/sehirler.json';
+else if(p==='/api/jokeyler'){var s=q.searchParams.get('sehir')||'-1',y=q.searchParams.get('yil')||new Date().getFullYear();u='veri/jokey-'+s+'-'+y+'.json';}
+else if(p==='/api/jokey-tablo'){var s2=q.searchParams.get('sehir')||'-1',y2=q.searchParams.get('yil')||new Date().getFullYear();u='veri/jokey-tablo-'+y2+'-'+s2+'.json';}
+else if(p==='/api/istatistik'){var t=(q.searchParams.get('tip')||'').split('/')[0].trim(),g=q.searchParams.get('grup')||'',n=q.searchParams.get('n')||'50',se=q.searchParams.get('sehir')||'-1',me=q.searchParams.get('mesafe')||'',ci=q.searchParams.get('cins')||'';u='veri/istatistik-'+(t+'|'+g+'|'+n+'|'+se+'|'+me+'|'+ci).replace(/[^A-Za-z0-9]+/g,'_')+'.json';}
+else if(p==='/api/analiz'){var k=(q.searchParams.get('kosu')||'').replace(/[^A-Za-z0-9_-]/g,'_');u='veri/analiz-'+k+'.json';}
+}}catch(e){}return of(u,o);};})();
+</script><a class="backfab" href="./">&larr; Uygulama</a><div class="wrap">
+<p><a href="./">&larr; Uygulamaya dön</a> &nbsp;·&nbsp; <a href="turler.html">Koşu türleri ↗</a> &nbsp;·&nbsp; <a href="jokey-matris.html">Jokey × Hipodrom ↗</a></p>
+<h1>Jokey başarısı</h1>
+<div class="row">
+  <input id="ilAra" type="search" placeholder="İl ara: bursa, adana…" style="min-width:170px" autocomplete="off">
+  <select id="yil"></select>
+  <input id="ara" type="search" placeholder="Jokey ara…" style="flex:1;min-width:180px" autocomplete="off">
+</div>
+<div class="row" id="ilchips" style="margin-top:8px"></div>
+<div class="row" style="margin-top:8px">
+  <label class="mut">Sırala:
+    <select id="sirala">
+      <option value="P1">Birincilik sayısı</option>
+      <option value="galibiyet">Galibiyet %</option>
+      <option value="Kosu">Koşu sayısı</option>
+      <option value="ilk5">İlk 5 %</option>
+    </select>
+  </label>
+  <label class="mut">En az koşu:
+    <select id="minKosu">
+      <option value="0">Tümü</option><option value="10">10</option>
+      <option value="20">20</option><option value="50">50</option><option value="100">100</option>
+    </select>
+  </label>
+</div>
+<div class="card">
+  <div id="durum" class="spin">Yükleniyor…</div>
+  <div class="tblwrap" id="tablo" style="display:none"><table class="tbl">
+    <thead><tr>
+      <th data-s="Jokey">Jokey</th>
+      <th class="n" data-s="Kosu">Koşu</th>
+      <th class="n" data-s="P1">1.</th>
+      <th class="n" data-s="D2">2.</th>
+      <th class="n" data-s="D3">3.</th>
+      <th class="n" data-s="D4">4.</th>
+      <th class="n" data-s="D5">5.</th>
+      <th class="n" data-s="ilk5">İlk 5 %</th>
+      <th class="n" data-s="galibiyet">Galibiyet %</th>
+    </tr></thead><tbody id="tbody"></tbody></table></div>
+  <p class="mut" id="dipnot"></p>
+  <p class="mut" id="kapsam">TJK jokey istatistiğini yıl bazında yayınlıyor; kayan 12 aylık pencere vermiyor. Bu yüzden bu yıl ve geçen yıl seçenekleri var; 400 günden eski önbellek kendiliğinden silinir.</p>
+</div>
+</div>
+<script>
+var VERI = [], ILLER = [], SIRA = 'P1', YON = -1, SEHIR = '-1', YIL = String(new Date().getFullYear());
+function el(i){ return document.getElementById(i); }
+function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+function n(x){ var v=parseInt(x,10); return isNaN(v)?0:v; }
+
+function alan(j){
+  var kosu=n(j.Kosu), p1=n(j.D1);
+  if(kosu<=0 || p1>kosu) return null;          // bozuk/karışık satır gösterme
+  var top=p1+n(j.D2)+n(j.D3)+n(j.D4)+n(j.D5);
+  return {
+    Jokey: j.Jokey || '',
+    Kosu: kosu,
+    P1: p1, D2: n(j.D2), D3: n(j.D3), D4: n(j.D4), D5: n(j.D5),
+    ilk5: Math.round(1000*top/kosu)/10,
+    galibiyet: Math.round(1000*p1/kosu)/10
+  };
+}
+
+function anaAd(s){ return String(s||'').replace(/\s*\(Y\d+\)\s*$/i,'').trim(); }
+function ciz(){
+  var q = (el('ara').value||'').toLowerCase().trim();
+  var minK = parseInt((el('minKosu')||{}).value,10) || 0;
+  // Yüzde sıralamasında 1-2 koşuluk %100'ler tepeyi bozmasın: en az 10 koşu.
+  var minEff = (SIRA === 'galibiyet' || SIRA === 'ilk5') ? Math.max(minK, 10) : minK;
+  // Aynı jokeyin " (Y1)/(Y2)" çıraklık satırlarını tek satırda birleştir.
+  var map = {}, rows = [];
+  VERI.forEach(function(j){
+    var r = alan(j); if(!r) return;
+    var nm = anaAd(r.Jokey); if(!nm) return;
+    var k = nm.toLocaleUpperCase('tr');
+    var m = map[k];
+    if(!m){ m = { Jokey:nm, Kosu:0, P1:0, D2:0, D3:0, D4:0, D5:0 }; map[k] = m; rows.push(m); }
+    m.Kosu += r.Kosu; m.P1 += r.P1; m.D2 += r.D2; m.D3 += r.D3; m.D4 += r.D4; m.D5 += r.D5;
+  });
+  rows.forEach(function(r){
+    var top = r.P1 + r.D2 + r.D3 + r.D4 + r.D5;
+    r.ilk5 = r.Kosu ? Math.round(1000*top/r.Kosu)/10 : 0;
+    r.galibiyet = r.Kosu ? Math.round(1000*r.P1/r.Kosu)/10 : 0;
+  });
+  rows = rows.filter(function(r){ return (!q || r.Jokey.toLowerCase().indexOf(q) >= 0) && r.Kosu >= minEff; });
+  rows.sort(function(a,b){
+    if(SIRA === 'Jokey') return YON * a.Jokey.localeCompare(b.Jokey,'tr');
+    return YON * ((a[SIRA]||0) - (b[SIRA]||0));
+  });
+  el('tbody').innerHTML = rows.map(function(r, i){
+    var cls = i < 3 && SIRA === 'P1' && YON === -1 ? ' style="font-weight:600"' : '';
+    return '<tr'+cls+'><td>'+esc(r.Jokey)+'</td><td class="n">'+r.Kosu+'</td><td class="n">'+r.P1
+      +'</td><td class="n">'+r.D2+'</td><td class="n">'+r.D3+'</td><td class="n">'+r.D4+'</td><td class="n">'+r.D5
+      +'</td><td class="n">'+(r.Kosu?('%'+r.ilk5.toFixed(1)):'—')+'</td><td class="n">'+(r.Kosu?('%'+r.galibiyet.toFixed(1)):'—')+'</td></tr>';
+  }).join('') || '<tr><td colspan="9" class="mut">Kayıt yok.</td></tr>';
+  Array.prototype.forEach.call(document.querySelectorAll('.tbl th'), function(th){
+    th.className = (th.getAttribute('data-s') === SIRA ? 'sel' : '');
+    if(th.getAttribute('data-s') === 'Jokey' || ['Kosu','P1','D2','D3','D4','D5','ilk5','galibiyet'].indexOf(th.getAttribute('data-s')) >= 0) th.className += ' n';
+  });
+  el('dipnot').textContent = rows.length + ' jokey · ' + (minEff>0 ? ('en az '+minEff+' koşu · ') : '') + 'kaynak TJK Jokey İstatistikleri ('+YIL+') · sürüm 24.11-3';
+}
+
+var JK_MEM = {};   // il|yıl -> jokey listesi (sekmeler arası hızlı geçiş)
+function yukle(){
+  var mkey = SEHIR + '|' + YIL;
+  if(JK_MEM[mkey]){
+    VERI = JK_MEM[mkey];
+    el('durum').style.display = 'none'; el('tablo').style.display = 'block'; ciz();
+  } else {
+    el('durum').style.display = 'block'; el('durum').textContent = 'Yükleniyor…'; el('tablo').style.display = 'none';
+  }
+  // Onbellekte kalmis eski dosyalari atla (GitHub Pages / tarayici cache)
+  var u = '/api/jokeyler?sehir='+encodeURIComponent(SEHIR)+'&yil='+encodeURIComponent(YIL)+'&_='+Date.now();
+  fetch(u, { cache: 'no-store' }).then(function(r){
+    if(!r.ok){
+      // Yayinda her hipodrom dosyasi olmayabilir: Tum Turkiye'ye dus
+      if(String(SEHIR) !== '-1'){ SEHIR = '-1'; cizIller(); yukle(); return null; }
+      throw new Error('HTTP '+r.status);
+    }
+    return r.json();
+  }).then(function(o){
+    if(!o) return;
+    VERI = o.Jokeyler || [];
+    JK_MEM[mkey] = VERI;
+    if(!VERI.length && String(SEHIR) !== '-1'){
+      el('durum').style.display = 'block';
+      el('durum').textContent = 'Seçilen il için '+YIL+' jokey istatistiği yok. “Tüm Türkiye”ye basarak ülke genelini görebilirsin.';
+      el('tablo').style.display = 'none';
+      return;
+    }
+    if(!VERI.length){ el('durum').textContent = 'Bu seçim için jokey istatistiği yok.'; return; }
+    el('durum').style.display = 'none'; el('tablo').style.display = 'block'; ciz();
+  }).catch(function(e){ el('durum').textContent = 'Veri alınamadı ('+(e.message||'hata')+').'; });
+}
+
+el('ara').oninput = ciz;
+el('ilAra').oninput = function(){ cizIller(); };
+el('yil').onchange = function(){ YIL = el('yil').value; yukle(); };
+if(el('sirala')) el('sirala').onchange = function(){ SIRA = el('sirala').value; YON = -1; ciz(); };
+if(el('minKosu')) el('minKosu').onchange = ciz;
+
+function ilNorm(s){ return String(s||'').toLowerCase().replace(/[ıİ]/g,'i'); }
+function cizIller(){
+  var q = ilNorm(el('ilAra').value).trim();
+  var liste = ILLER.filter(function(c){ return !q || ilNorm(c.Ad).indexOf(q) >= 0; });
+  var html = '<span class="chip'+(String(SEHIR)==='-1'?' sel':'')+'" data-id="-1">Tüm Türkiye</span>';
+  html += liste.map(function(c){ return '<span class="chip'+(String(SEHIR)===String(c.Id)?' sel':'')+'" data-id="'+esc(c.Id)+'">'+esc(c.Ad)+'</span>'; }).join('');
+  el('ilchips').innerHTML = html;
+  Array.prototype.forEach.call(el('ilchips').querySelectorAll('.chip'), function(x){
+    x.onclick = function(){ SEHIR = x.getAttribute('data-id'); cizIller(); yukle(); };
+  });
+}
+
+Array.prototype.forEach.call(document.querySelectorAll('.tbl th'), function(th){
+  th.onclick = function(){ var s = th.getAttribute('data-s'); if(SIRA === s){ YON = -YON; } else { SIRA = s; YON = (s === 'Jokey') ? 1 : -1; } var sl=el('sirala'); if(sl && ['P1','galibiyet','Kosu','ilk5'].indexOf(s)>=0){ sl.value=s; } ciz(); };
+});
+
+var bugun = new Date().getFullYear(), opt = '';
+for(var y = bugun; y >= bugun-1; y--){ opt += '<option value="'+y+'">'+y+'</option>'; }
+el('yil').innerHTML = opt; el('yil').value = String(bugun); YIL = String(bugun);
+
+function illeriYukle(){
+  fetch('/api/sehirler?_='+Date.now(), { cache: 'no-store' }).then(function(r){ return r.json(); }).then(function(o){
+    ILLER = (o.Sehirler||[]).map(function(c){ return { Id:c.Id, Ad:c.Ad }; });
+    if(ILLER.length){ cizIller(); onYukle(); return; }
+    return fetch('/api/gun?hizli=1').then(function(r){ return r.json(); }).then(function(g){
+      ILLER = ((g.Sehirler)||[]).map(function(c){ return { Id:c.SehirId, Ad:(c.Ad||c.Sehir||('Şehir '+c.SehirId)) }; });
+      cizIller(); onYukle();
+    });
+  }).catch(function(){});
+}
+// İl dosyalarını arkada bir kez çek: sekmeler arası geçiş anında olsun.
+function onYukle(){
+  setTimeout(function(){
+    (ILLER||[]).forEach(function(c){
+      var k=String(c.Id)+'|'+YIL;
+      if(JK_MEM[k]) return;
+      fetch('/api/jokeyler?sehir='+encodeURIComponent(c.Id)+'&yil='+encodeURIComponent(YIL), { cache:'no-store' })
+        .then(function(r){ return r.ok ? r.json() : null; })
+        .then(function(o){ if(o && o.Jokeyler) JK_MEM[k]=o.Jokeyler; })
+        .catch(function(){});
+    });
+  }, 2500);
+}
+cizIller();
+illeriYukle();
+
+yukle();
+</script>
+</body></html>

@@ -1,0 +1,345 @@
+<!doctype html>
+<html lang="tr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Koşu Türleri — İstatistik</title>
+<style>
+:root{--bg:#0f1115;--card:#171a21;--line:#2a3140;--ink:#e8ecf1;--mut:#98a2b3;--acc:#4f8cff}
+*{box-sizing:border-box}body{margin:0;font-family:system-ui,Segoe UI,Arial;background:var(--bg);color:var(--ink);padding:14px}
+.wrap{max-width:1000px;margin:0 auto}a{color:var(--acc);text-decoration:none}
+h1{font-size:19px;margin:0 0 10px}h3{font-size:12px;color:var(--mut);margin:16px 0 8px;text-transform:uppercase;letter-spacing:.05em}
+input,select{background:var(--card);color:var(--ink);border:1px solid var(--line);border-radius:9px;padding:9px 11px;font-size:14px}
+input:focus,select:focus{outline:none;border-color:var(--acc)}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;max-height:200px;overflow:auto;padding:2px}
+.chip{display:inline-block;padding:6px 10px;border:1px solid var(--line);border-radius:8px;font-size:12.5px;color:var(--ink);background:var(--card);cursor:pointer}
+.chip.sel{background:var(--acc);border-color:var(--acc);color:#fff}
+.chip .dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:#3ecf8e;margin-left:6px;vertical-align:middle}
+.chip .dot.no{background:#4a5262}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;margin-top:12px}
+.kpi{display:flex;flex-wrap:wrap;gap:14px}
+.kpi div{font-size:12.5px;color:var(--mut)}.kpi b{display:block;font-size:19px;color:var(--ink)}
+.bars{display:flex;flex-direction:column;gap:6px;margin-top:6px}
+.bar{display:grid;grid-template-columns:70px 1fr 56px;gap:8px;align-items:center;font-size:12.5px}
+.track{height:10px;background:#12151b;border:1px solid var(--line);border-radius:6px;overflow:hidden}
+.fill{display:block;height:100%;background:var(--acc)}.num{text-align:right}
+.mut{color:var(--mut);font-size:12px}
+.tblwrap{overflow:auto;margin-top:6px}
+.tbl{width:100%;border-collapse:collapse;font-size:12px}
+.tbl th,.tbl td{padding:6px 7px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap}
+.tbl th{color:var(--mut);font-size:11px;text-transform:uppercase}
+.btn{display:inline-block;padding:6px 11px;border:1px solid var(--line);border-radius:8px;font-size:12.5px;color:var(--ink);cursor:pointer;background:var(--card)}
+.btn.sel{background:var(--acc);border-color:var(--acc);color:#fff}
+.spin{color:var(--mut);font-size:13px;padding:8px 0}
+.not{background:#12151b;border-left:3px solid var(--acc);border-radius:8px;padding:9px 12px;margin:10px 0;font-size:12.8px;line-height:1.55;color:#cfd6e2}
+.not b{color:var(--ink)}
+.backfab{position:fixed;top:10px;right:10px;z-index:20;background:var(--acc);color:#fff;border-radius:999px;padding:7px 12px;font-size:12.5px;text-decoration:none;box-shadow:0 2px 8px rgba(0,0,0,.35)}
+</style></head>
+<body><script>
+(function(){var GL=["20261128","20261129","20261127"];var GYD=["20261124","20261125","20261126","20261127","20261128"];window.__GL__=GL;window.__GYD__=GYD;var of=window.fetch;window.fetch=function(u,o){try{if(typeof u==='string'&&u.indexOf('/api/')===0){var q=new URL(u,location.href),p=q.pathname;
+if(p==='/api/gun'){var tt=q.searchParams.get('tarih')||'',yd=q.searchParams.get('yabanci')==='1',is='';if(/^\d{4}-\d{2}-\d{2}$/.test(tt))is=tt.replace(/-/g,'');else if(/^\d{2}\/\d{2}\/\d{4}$/.test(tt)){var aa=tt.split('/');is=aa[2]+aa[1]+aa[0];}
+ if(yd){if(is&&GYD.indexOf(is)>=0)u='veri/gun-'+is+'-yd.json?t='+Date.now();else if(!is)u='veri/gun-yabanci.json?t='+Date.now();else u='veri/gun-yd-yok.json';}
+ else if(is){var d='veri/gun-'+is+'.json?t='+Date.now(),fb='veri/gun.json?t='+Date.now();if(GL.indexOf(is)>=0)u=d;else return of(d,o).then(function(r){return r.ok?r:of(fb,o);});}
+ else u='veri/gun.json?t='+Date.now();}
+else if(p==='/api/turler')u='veri/turler.json';
+else if(p==='/api/sehirler')u='veri/sehirler.json';
+else if(p==='/api/jokeyler'){var s=q.searchParams.get('sehir')||'-1',y=q.searchParams.get('yil')||new Date().getFullYear();u='veri/jokey-'+s+'-'+y+'.json';}
+else if(p==='/api/jokey-tablo'){var s2=q.searchParams.get('sehir')||'-1',y2=q.searchParams.get('yil')||new Date().getFullYear();u='veri/jokey-tablo-'+y2+'-'+s2+'.json';}
+else if(p==='/api/istatistik'){var t=(q.searchParams.get('tip')||'').split('/')[0].trim(),g=q.searchParams.get('grup')||'',n=q.searchParams.get('n')||'50',se=q.searchParams.get('sehir')||'-1',me=q.searchParams.get('mesafe')||'',ci=q.searchParams.get('cins')||'';u='veri/istatistik-'+(t+'|'+g+'|'+n+'|'+se+'|'+me+'|'+ci).replace(/[^A-Za-z0-9]+/g,'_')+'.json';}
+else if(p==='/api/analiz'){var k=(q.searchParams.get('kosu')||'').replace(/[^A-Za-z0-9_-]/g,'_');u='veri/analiz-'+k+'.json';}
+}}catch(e){}return of(u,o);};})();
+</script><a class="backfab" href="./">&larr; Uygulama</a><div class="wrap">
+<p><a href="./">&larr; Uygulamaya dön</a> &nbsp;·&nbsp; <a href="jokeyler.html">Jokey başarısı ↗</a> &nbsp;·&nbsp; <a href="jokey-matris.html">Jokey × Hipodrom ↗</a></p>
+<h1>Koşu türleri — istatistik</h1>
+<div class="row">
+  <input id="ara" type="search" placeholder="Ara: kv, handikap 16, şartlı 4…" style="flex:1;min-width:220px" autocomplete="off">
+  <select id="sehir"><option value="-1">Tüm Türkiye</option></select>
+</div>
+<div class="row" style="margin-top:8px">
+  <select id="kategori"><option value="">Kategori: Tümü</option></select>
+  <select id="cins">
+    <option value="">Cinsiyet: Tümü</option>
+    <option value="2">Dişi</option>
+    <option value="1">Erkek</option>
+  </select>
+  <select id="mesafe">
+    <option value="">Mesafe: Tümü</option>
+    <option value="<=1200">≤1200</option>
+    <option value="1201-1600">1201-1600</option>
+    <option value="1601-2000">1601-2000</option>
+    <option value="2001+">2001+</option>
+  </select>
+</div>
+<div class="chips" id="chips"><span class="spin">Türler yükleniyor…</span></div>
+
+<div id="sonuc" class="card" style="display:none">
+  <div class="row" style="justify-content:space-between">
+    <h1 id="baslik" style="font-size:17px;margin:0"></h1>
+    <div class="row" id="boyutlar"></div>
+  </div>
+  <div class="small mut" style="margin:8px 0 2px">Kategori (yaş/ırk):</div>
+  <div class="chips" id="katchips"></div>
+  <div id="durum" class="spin"></div>
+  <div id="icerik" style="display:none">
+    <div class="not" id="not"></div>
+    <div class="kpi" id="kpis"></div>
+    <p class="mut" id="kadro"></p>
+    <h3>Kazananların HP dağılımı</h3>
+    <div class="bars" id="bands"></div>
+    <h3>Filtre</h3>
+    <div class="row" id="filters"></div>
+    <h3>Kazananlar</h3>
+    <div class="tblwrap"><table class="tbl"><thead><tr>
+      <th>Tarih</th><th>Şehir</th><th>Pist</th><th>Irk</th><th>Kazanan</th><th>Yaş</th><th>Kilo</th><th>HP</th><th>Favori</th>
+    </tr></thead><tbody id="tbody"></tbody></table></div>
+  </div>
+</div>
+<p style="margin:18px 0"><a href="./">&larr; Uygulamaya dön</a> &nbsp;·&nbsp; <a href="jokeyler.html">Jokey başarısı ↗</a></p>
+</div>
+<script>
+var TUR = [], SEC = null, N = 50, SEHIR = '-1', S = null, F = {y:'', i:'', a:''}, SIRA = '';
+var GRUP = '', CINS = '', MES = '';
+var KAT_LIST = [];
+
+function el(id){ return document.getElementById(id); }
+function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+function pct(a,b){ return b ? Math.round(1000*a/b)/10 : null; }
+function num(x){ if(typeof x==='number') return x; var v=parseFloat(String(x==null?'':x).replace(',','.')); return isNaN(v)?null:v; }
+function avg(a){ a=a.filter(function(x){return x!=null;}); if(!a.length) return null; var t=0; a.forEach(function(x){t+=x;}); return Math.round(10*t/a.length)/10; }
+
+// Kategori adı ırkı belirliyorsa ("4 Yaş ve Yukarı Araplar") alt ırk süzgeci
+// kendiliğinden ona geçer; diğer ırk düğmesi pasif olur.
+function kategoriIrk(){
+  var g = String(GRUP||'').replace(/İ/g,'i').toLowerCase();
+  if(g.indexOf('arap')>=0) return 'Arap';
+  if(g.indexOf('ingiliz')>=0) return 'İngiliz';
+  return '';
+}
+var LAST_KAT = null;
+
+function cizTurler(){
+  var q = (el('ara').value||'').toLowerCase().replace(/\s+/g,' ').trim();
+  var norm = function(s){ return String(s||'').toLowerCase().replace(/[-\/_]/g,' ').replace(/\s+/g,' '); };
+  var liste = TUR.filter(function(t){
+    if(!q) return true;
+    var a = norm(t.Ad), b = norm(q);
+    if(a.indexOf(b)>=0) return true;
+    // "kv 6" / "kv6" / "kv" eslesmesi
+    var m = b.match(/^(kv|şartlı|sartli|handikap)\s*(\d+)?$/);
+    if(m){ var pre = norm(t.Ad); return pre.indexOf(m[1])===0 && (!m[2] || pre.indexOf(m[1]+' '+m[2])===0); }
+    return false;
+  });
+  if(!liste.length){ el('chips').innerHTML='<span class="spin">Eşleşen tür yok.</span>'; return; }
+  el('chips').innerHTML = liste.map(function(t){
+    return '<span class="chip'+(SEC===t.Ad?' sel':'')+'" role="button" tabindex="0" data-tip="'+esc(t.Ad)+'">'+esc(t.Ad)+'<span class="dot'+(t.Hazir?'':' no')+'" title="'+(t.Hazir?'İstatistik hazır':'İstatistik hazırlanacak')+'"></span></span>';
+  }).join('');
+  Array.prototype.forEach.call(el('chips').querySelectorAll('.chip'), function(c){
+    c.onclick = function(){ secTur(c.getAttribute('data-tip')); };
+  });
+}
+
+el('ara').oninput = cizTurler;
+
+var KAT_FALLBACK = ['2 Yaşlı İngilizler','2 ve Yukarı İngilizler','3 Yaşlı İngilizler','3 ve Yukarı İngilizler','3 Yaşlı Araplar','3 ve Yukarı Araplar','4 Yaşlı Araplar','4 ve Yukarı İngilizler','4 ve Yukarı Araplar','5 ve Yukarı Araplar'];
+function katEtiket(a){
+  // API degeri "3 ve Yukarı İngilizler"; yarış kartındaki okunuş "3 Yaş ve Yukarı İngilizler"
+  return String(a).replace(/^(\d+)\s+ve\s+Yukarı/, '$1 Yaş ve Yukarı');
+}
+function katOps(adlar){
+  var ops = '<option value="">Kategori: Tümü</option>';
+  adlar.forEach(function(a){ ops += '<option value="'+esc(a)+'">'+esc(katEtiket(a))+'</option>'; });
+  return ops;
+}
+function katYukle(){
+  if(el('kategori')) el('kategori').innerHTML = katOps(KAT_FALLBACK);
+  fetch('/api/kategoriler', { cache: 'no-store' }).then(function(r){ return r.json(); }).then(function(d){
+    var adlar = ((d && d.Grup) || []).map(function(g){ return g.Ad; });
+    if(adlar.length){ KAT_LIST = adlar; if(el('kategori')) el('kategori').innerHTML = katOps(adlar); cizKatChips(); }
+  }).catch(function(){});
+}
+function secimDegisti(){
+  GRUP = el('kategori') ? el('kategori').value : '';
+  CINS = el('cins') ? el('cins').value : '';
+  MES = el('mesafe') ? el('mesafe').value : '';
+  if(SEC) yukle(0);
+}
+['kategori','cins','mesafe'].forEach(function(id){ if(el(id)) el(id).onchange = secimDegisti; });
+katYukle();
+
+function cizKatChips(){
+  if(!el('katchips')) return;
+  var list = (KAT_LIST && KAT_LIST.length) ? KAT_LIST : KAT_FALLBACK;
+  var h = '<span class="chip'+(GRUP===''?' sel':'')+'" role="button" tabindex="0" data-k="">Tümü</span>';
+  list.forEach(function(a){ h += '<span class="chip'+(GRUP===a?' sel':'')+'" role="button" tabindex="0" data-k="'+esc(a)+'" title="'+esc(a)+'">'+esc(katEtiket(a))+'</span>'; });
+  el('katchips').innerHTML = h;
+  Array.prototype.forEach.call(el('katchips').querySelectorAll('.chip'), function(c){
+    c.onclick = function(){
+      GRUP = c.getAttribute('data-k') || '';
+      if(el('kategori')) el('kategori').value = GRUP;
+      cizKatChips();
+      if(SEC) yukle(0);
+    };
+  });
+}
+function secTur(tip){
+  SEC = tip; cizTurler(); cizKatChips();
+  el('sonuc').style.display = 'block';
+  el('baslik').textContent = tip + ' — istatistik';
+  el('boyutlar').innerHTML = [20,50,100,200].map(function(k){
+    return '<span class="btn'+(k===N?' sel':'')+'" data-n="'+k+'">son '+k+'</span>';
+  }).join('');
+  Array.prototype.forEach.call(el('boyutlar').querySelectorAll('.btn'), function(b){
+    b.onclick = function(){ N = parseInt(b.getAttribute('data-n'),10); secTur(tip); };
+  });
+  yukle(0);
+}
+
+async function yukle(deneme){
+  var dur = el('durum');
+  dur.style.display = 'block';
+  dur.textContent = deneme ? ('Bu tür ilk kez hesaplanıyor — TJK geçmişi taranıyor ('+Math.round(deneme*5)+' sn). Sayfa kendiliğinden dolacak.') : 'Yükleniyor…';
+  el('icerik').style.display = 'none';
+  // Statik yayında istenen dosya olmayabilir: kademeli geri düş.
+  //   1) istenen hipodrom + kategori   2) Tüm Türkiye + kategori   3) Tüm Türkiye + tüm kategoriler
+  var adaylar = [
+    { sehir: SEHIR, grup: GRUP, mes: MES, cins: CINS, not: '' },
+    { sehir: '-1',  grup: GRUP, mes: '',  cins: '',   not: 'Bu hipodrom için ayrı istatistik yayında yok; Tüm Türkiye gösteriliyor.' },
+    { sehir: '-1',  grup: '',   mes: '',  cins: '',   not: 'Bu kategori için ayrı dosya yayında yok; tüm kategoriler gösteriliyor.' }
+  ];
+  for (var i = 0; i < adaylar.length; i++) {
+    var a = adaylar[i];
+    var u = '/api/istatistik?tip='+encodeURIComponent(SEC)+'&grup='+encodeURIComponent(a.grup)+'&mesafe='+encodeURIComponent(a.mes)+'&cins='+encodeURIComponent(a.cins)+'&n='+N+'&sehir='+encodeURIComponent(a.sehir);
+    try {
+      var r = await fetch(u);
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      var s = await r.json();
+      if (s.Hazirlaniyor) {
+        if (deneme < 60) { setTimeout(function(){ yukle(deneme + 1); }, 5000); return; }
+        dur.textContent = 'İstatistik hazırlanıyor; birkaç dakika sonra tekrar dene.';
+        return;
+      }
+      if (s.Hata) throw new Error(s.Hata);
+      S = s; F = { y: '', i: '', a: '' };
+      dur.style.display = 'none'; el('icerik').style.display = 'block'; ciz();
+      if (i > 0) { el('not').innerHTML = '<div class="mut" style="margin-bottom:6px">' + esc(a.not) + '</div>' + el('not').innerHTML; }
+      return;
+    } catch (e) {
+      if (i === adaylar.length - 1) {
+        dur.textContent = 'Bu tür için istatistik henüz yayınlanmadı. TJK verisi alındığında otomatik eklenecek. (' + (e.message || 'hata') + ')';
+        return;
+      }
+    }
+  }
+}
+
+function satirlar(){
+  var A = (S && S.Kosular) || [];
+  return A.filter(function(r){
+    var p = String(r.Pist||'').toLowerCase();
+    if(F.y==='kum' && p.indexOf('kum')<0) return false;
+    if(F.y==='cim' && !(p.indexOf('çim')>=0 || p.indexOf('cim')>=0)) return false;
+    if(F.y==='sentetik' && p.indexOf('sentetik')<0) return false;
+    if(F.i && String(r.Irk||'')!==F.i) return false;
+    if(F.a && String(r.Yas||'').match(/(\d{1,2})/) && RegExp.$1!==F.a) return false;
+    return true;
+  });
+}
+
+function fbtn(kind,val,label){  return '<span class="btn'+(F[kind]===val?' sel':'')+'" role="button" tabindex="0" data-k="'+kind+'" data-v="'+esc(val)+'">'+esc(label)+'</span>';
+}
+// Chip'ler klavyeyle de çalışsın (Enter/Space = tık).
+document.addEventListener('keydown', function(e){
+  if(e.key!=='Enter' && e.key!==' ') return;
+  var t=e.target;
+  if(t && t.classList && (t.classList.contains('chip')||t.classList.contains('btn')) && t.getAttribute('tabindex')==='0'){ e.preventDefault(); t.click(); }
+});
+
+function yorum(n, fav, yuk, dus, kilo, yas){
+  if(!n) return '';
+  var p = pct(fav,n), hpY = pct(yuk,n), hpD = pct(dus,n), out = [];
+  if(n < 20) out.push('<b>Örnek küçük</b> ('+n+' koşu): yüzdeler oynak, temkinli bak.');
+  if(p != null){
+    if(p >= 40) out.push('<b>Favoriler güçlü</b> (%'+p+'): AGF sıralaması bu tipte ciddi gösterge.');
+    else if(p >= 28) out.push('<b>Favori oranı orta</b> (%'+p+'): sıralama tek başına yetmez; kilo ve HP farkı belirleyici.');
+    else out.push('<b>Favoriler zayıf</b> (%'+p+', sürpriz %'+(100-p).toFixed(1)+'): bu tipte sıralamaya körü körüne güvenmek riskli.');
+  }
+  if(hpY != null && hpY >= 15) out.push('En yüksek handikap puanlı at sık kazanıyor (%'+hpY+').');
+  if(hpD != null && hpD >= 10) out.push('Düşük HP\'li atlar da kazanıyor (%'+hpD+'): handikap dengesi zayıf.');
+  if(kilo) out.push('Ort. sıklet <b>'+kilo+' kg</b>'+(kilo >= 57 ? ' — ağır kadro, kilo farkı öne çıkar.' : kilo <= 54.5 ? ' — hafif kadro, hız öne çıkar.' : ' — dengeli.'));
+  if(yas) out.push('Ort. yaş <b>'+yas+'</b>'+(yas < 3.8 ? ' — genç atlar; istikrar düşük, sürpriz fazla.' : yas > 4.6 ? ' — olgun atlar; form daha güvenilir.' : ' — karışık yaş grubu.'));
+  return '<b>Not:</b> ' + out.join(' ');
+}
+
+function ciz(){
+  var katIrk = kategoriIrk();
+  if(LAST_KAT !== GRUP){ F.i = katIrk; LAST_KAT = GRUP; }
+  var rows = satirlar(), n = rows.length;
+  var fav = rows.filter(function(r){return !!r.Favori;}).length;
+  var yuk = rows.filter(function(r){return !!r.EnYuksekHP;}).length;
+  var dus = rows.filter(function(r){return !!r.EnDusukHP;}).length;
+  var kilo = avg(rows.map(function(r){ return num(r.Kilo); }));
+  var yas = avg(rows.map(function(r){ var m=String(r.Yas||'').match(/(\d{1,2})/); return m?parseInt(m[1],10):null; }));
+  var hasF = (S.KadroSayisi||0) > 0;
+  el('kpis').innerHTML =
+    '<div>Koşu <b>'+n+'</b></div>'
+    +'<div>Favori kazanma <b>'+(hasF&&n?('%'+pct(fav,n)):'—')+'</b></div>'
+    +'<div>Sürpriz <b>'+(hasF&&n?('%'+pct(n-fav,n)):'—')+'</b></div>'
+    +'<div>En yüksek HP <b>'+(hasF&&n?('%'+pct(yuk,n)):'—')+'</b></div>'
+    +'<div>En düşük HP <b>'+(hasF&&n?('%'+pct(dus,n)):'—')+'</b></div>'
+    +'<div>Ort. sıklet <b>'+(kilo?(kilo+' kg'):'—')+'</b></div>'
+    +'<div>Ort. yaş <b>'+(yas||'—')+'</b></div>';
+  el('kadro').textContent = 'Tam kadro: '+(S.KadroSayisi||0)+'/'+(S.KosuSayisi||0)+' koşu'+(S.Bayat?' · önbellekteki veri eski (arka planda tazeleniyor)':'');
+  el('not').innerHTML = yorum(n, fav, yuk, dus, kilo, yas);
+
+  var hps = rows.map(function(r){ return num(r.HP); }).filter(function(x){ return x!=null; });
+  var b='';
+  if(hps.length){
+    var mn=Math.min.apply(null,hps), mx=Math.max.apply(null,hps), step=Math.max(5, Math.ceil((mx-mn)/6)), lo=Math.floor(mn/step)*step;
+    while(lo<=mx){
+      var hi=lo+step-1; var c=hps.filter(function(v){ return v>=lo&&v<=hi; }).length; var o=Math.round(1000*c/hps.length)/10;
+      b += '<div class="bar"><span>'+lo+'-'+hi+'</span><span class="track"><span class="fill" style="width:'+Math.round(o)+'%"></span></span><span class="num">%'+o+'</span></div>';
+      lo += step;
+    }
+  }
+  el('bands').innerHTML = b || '<span class="mut">HP verisi yok.</span>';
+
+  // Yaş filtresi kaldırıldı: yarış kategorisi (3 Yaşlı / 3 ve Yukarı ...) üstteki
+  // "Kategori" süzgecinden seçilir. Tablodaki yaş, kazanan atın yaşıdır; kategori değildir.
+  var irkBtns;
+  if(katIrk){
+    var diger = katIrk==='Arap' ? 'İngiliz' : 'Arap';
+    irkBtns = '<span class="btn sel">'+esc(katIrk)+'</span><span class="btn" style="opacity:.3;cursor:not-allowed" title="Kategoriye aykırı">'+esc(diger)+'</span>';
+  } else {
+    irkBtns = fbtn('i','','Hepsi')+fbtn('i','Arap','Arap')+fbtn('i','İngiliz','İngiliz');
+  }
+  el('filters').innerHTML = fbtn('y','','Tümü')+fbtn('y','kum','Kum')+fbtn('y','cim','Çim')+fbtn('y','sentetik','Sentetik')
+    +' &nbsp;|&nbsp; '+irkBtns;
+  Array.prototype.forEach.call(el('filters').querySelectorAll('.btn'), function(x){
+    x.onclick = function(){ var k=x.getAttribute('data-k'); if(!k) return; F[k] = x.getAttribute('data-v'); ciz(); };
+  });
+
+  el('tbody').innerHTML = rows.slice(0,200).map(function(r){
+    return '<tr><td>'+esc(r.Tarih)+'</td><td>'+esc(r.Sehir)+'</td><td>'+esc(r.Pist)+'</td><td>'+esc(r.Irk)
+      +'</td><td>'+esc(r.Kazanan||r.At||'')+'</td><td>'+esc(r.Yas)+'</td><td>'+esc(r.Kilo)+'</td><td>'+esc(r.HP)
+      +'</td><td>'+(r.Favori?'✓':'')+'</td></tr>';
+  }).join('') || '<tr><td colspan="9" class="mut">Kayıt yok.</td></tr>';
+}
+
+el('sehir').onchange = function(){ SEHIR = el('sehir').value; if(SEC) yukle(0); };
+
+fetch('/api/turler').then(function(r){ return r.json(); }).then(function(o){
+  TUR = (o.Turler||[]).filter(function(t){
+    return !/^(Handikap|Şartlı|Grup|YurtDışıBoş|Amatör|Amatör Binici|KADIN AMATÖR BİNİCİ|KADIN BİNİCİ)$/i.test(t.Ad);
+  });
+  TUR.sort(function(a,b){ return a.Ad.localeCompare(b.Ad,'tr'); });
+  cizTurler();
+}).catch(function(){ el('chips').innerHTML='<span class="spin">Tür listesi alınamadı.</span>'; });
+
+fetch('/api/gun?hizli=1').then(function(r){ return r.json(); }).then(function(g){
+  var sel = el('sehir');
+  var ek = '';
+  ((g.Sehirler)||[]).forEach(function(c){
+    ek += '<option value="'+esc(c.SehirId)+'">'+esc(c.Ad||c.Sehir||('Şehir '+c.SehirId))+'</option>';
+  });
+  sel.innerHTML = '<option value="-1">Tüm Türkiye</option>' + ek;
+}).catch(function(){});
+</script>
+</body></html>
