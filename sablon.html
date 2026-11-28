@@ -452,7 +452,8 @@ function guncelle(){
   try { window.scrollTo(0,0); } catch(e){}
 }
 let OPEN_STATS={};
-function findRace(kodu){ let out=null; (DATA.Sehirler||[]).forEach(c=>{ (c.Kosular||[]).forEach(r=>{ if(String(r.KosuKodu)===String(kodu)) out=r; }); }); return out; }
+function tumKosular(){ const out=[]; (DAYS||[]).forEach(d=>{ (d.Sehirler||[]).forEach(c=>{ (c.Kosular||[]).forEach(r=>out.push(r)); }); }); if(!out.length && DATA && DATA.Tarihler){ DATA.Tarihler.forEach(d=>{ (d.Sehirler||[]).forEach(c=>{ (c.Kosular||[]).forEach(r=>out.push(r)); }); }); } if(!out.length){ (DATA.Sehirler||[]).forEach(c=>{ (c.Kosular||[]).forEach(r=>out.push(r)); }); } return out; }
+function findRace(kodu){ const l=tumKosular(); for(let i=0;i<l.length;i++){ if(String(l[i].KosuKodu)===String(kodu)) return l[i]; } return null; }
 function mBand(m){
   m=parseInt(m,10)||0;
   return m<=1200?'<=1200':(m<=1600?'1201-1600':(m<=2000?'1601-2000':'2001+'));
@@ -544,8 +545,7 @@ async function istatistikHesapla(kodu){
 }
 async function analizYukle(kodu){
   const iso = DATA.TarihISO || isoFromTR(DATA.Tarih);
-  let race=null;
-  (DATA.Sehirler||[]).forEach(c=>{ (c.Kosular||[]).forEach(r=>{ if(String(r.KosuKodu)===String(kodu)){ race=r; } }); });
+  let race=findRace(kodu);
   if(!race) return;
   if(String(kodu).charAt(0)==='-') race.__detay=true;   // yurt dışı: özet paneller yine açılsın
   ensureBanner().innerHTML='Ayrıntılı analiz yükleniyor… ('+esc(race.KosuNo)+'. koşu — jokey/geçmiş/pist/istatistik)';
