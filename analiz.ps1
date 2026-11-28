@@ -28,6 +28,10 @@ $script:Headers   = @{
 $script:LastFetch = [datetime]::MinValue
 $script:FailStreak = @{}
 $script:Blocked = @{}
+# AtKosuBilgileri sayfasi basariyla alinan atlar. Bos gecmis ile "sayfa
+# alinamadi" ayrimi icin: jokey-at panelinde "ilk kez biniyor" yalnizca
+# gecmis gercekten okunduysa soylenir.
+$script:histOK = @{}
 
 foreach ($d in @($script:CacheBase, $script:RaporDir)) { if (-not (Test-Path $d)) { New-Item -ItemType Directory -Path $d -Force | Out-Null } }
 
@@ -329,7 +333,113 @@ function Get-HorseHistory([string]$html) {
     return $out
 }
 
-# Genel HTML tablo -> nesne listesi
+# Atin idman (antrenman/galop) kayitlari -> satirlar.
+# TJK sayfasi: Query/Page/IdmanIstatistikleri?QueryParameter_AtId=<id>
+# Kolonlar: At, Irk, Cins, Yas, 1400, 1200, 1000, 800, 600, 400, 200,
+#           Durum, I.Tarihi, I.Hip, P.Dur, Pist, I.Turu, I.Jokeyi, Detay
+function Get-HorseWorkouts([string]$html) {
+    $out = @()
+    $rows = [regex]::Matches($html, '(?s)<tr[^>]*>(.*?)</tr>')
+    foreach ($row in $rows) {
+        if ($row.Groups[1].Value -notmatch 'QueryParameter_Id=') { continue }
+        $tds = [regex]::Matches($row.Groups[1].Value, '(?s)<td[^>]*>(.*?)</td>')
+        if ($tds.Count -lt 18) { continue }
+        $val = {
+            param($i)
+            if ($i -ge $tds.Count) { return '' }
+            return (Strip-Tags $tds[$i].Groups[1].Value).Trim()
+        }
+        $mesafeler = [ordered]@{}
+        $ms = @(1400, 1200, 1000, 800, 600, 400, 200)
+        for ($i = 0; $i -lt 7; $i++) {
+            $v = & $val (4 + $i)
+            if ($v -match '^\d{1,2}\.\d{2}\.\d{2}$') { $mesafeler["$($ms[$i])"] = $v }
+        }
+        $out += [pscustomobject]@{
+            At     = & $val 0
+            Tarih  = & $val 12
+            Hip    = & $val 13
+            Pist   = & $val 15
+            Tur    = & $val 16
+            Jokey  = & $val 17
+            Durum  = & $val 11
+            Sureler = $mesafeler
+        }
+    }
+    return $out
+}
+
+# TJK idman suresi "dk.sn.sn100" (ornek 0.56.40) -> saniye
+function IdmanSureSn([string]$s) {
+    $p = ([string]$s) -split '\.'
+    if ($p.Count -ne 3) { return [double]::MaxValue }
+    $a = 0.0; $b = 0.0; $c = 0.0
+    if (-not [double]::TryParse($p[0], [ref]$a)) { return [double]::MaxValue }
+    if (-not [double]::TryParse($p[1], [ref]$b)) { return [double]::MaxValue }
+    if (-not [double]::TryParse($p[2], [ref]$c)) { return [double]::MaxValue }
+    return $a * 60 + $b + $c / 100
+}
+
+# At basina idman ozeti (son idman + mesafe rekorlari). Onbellekli.
+function Build-Workouts($race) {
+    $res = @{}
+    if (-not (Test-Path $script:IdmanDir)) { New-Item -ItemType Directory -Path $script:IdmanDir -Force | Out-Null }
+    foreach ($h in $race.Atlar) {
+        if (-not $h.AtId) { continue }
+        $f = Join-Path $script:IdmanDir ($h.AtId + '.json')
+        $liste = @()
+        $taze = $false
+        if (Test-Path $f) {
+            try { if (((Get-Date) - (Get-Item $f).LastWriteTime).TotalHours -lt $script:IdmanTtlSaat) { $taze = $true } } catch {}
+        }
+        if ($taze) {
+            try { $liste = @([IO.File]::ReadAllText($f, [Text.Encoding]::UTF8) | ConvertFrom-Json | Where-Object { $_ -and $_.Tarih }); if ($liste.Count -eq 0) { $taze = $false } } catch { $taze = $false }
+        }
+        if (-not $taze) {
+            $liste = @()
+            if (-not $UseCacheOnly) {
+                $u = "$script:Base/TR/YarisSever/Query/Page/IdmanIstatistikleri?QueryParameter_AtId=$($h.AtId)"
+                $html = Invoke-Tjk $u -TimeoutSec 12 -Cat 'idman'
+                if ($html) {
+                    $liste = @(Get-HorseWorkouts $html)
+                    try { [IO.File]::WriteAllText($f, (ConvertTo-Json @($liste) -Depth 6 -Compress), (New-Object Text.UTF8Encoding($false))) } catch {}
+                }
+            }
+        }
+        if ($liste.Count -eq 0) { continue }
+        $son = $liste[0]
+        $sonT = [datetime]::MinValue
+        foreach ($x in $liste) {
+            $d = [datetime]::MinValue
+            if ([datetime]::TryParseExact([string]$x.Tarih, 'dd.MM.yyyy', $script:CIV, [Globalization.DateTimeStyles]::None, [ref]$d) -and $d -gt $sonT) { $sonT = $d; $son = $x }
+        }
+        $enIyi = @{}
+        foreach ($x in $liste) {
+            foreach ($k in $x.Sureler.Keys) {
+                $v = [string]$x.Sureler[$k]
+                if (-not $enIyi.ContainsKey($k)) { $enIyi[$k] = $v }
+                else {
+                    if ((IdmanSureSn $v) -lt (IdmanSureSn ([string]$enIyi[$k]))) { $enIyi[$k] = $v }
+                }
+            }
+        }
+        $gun = $null
+        if ($sonT -gt [datetime]::MinValue) { $gun = [int]((Get-Date).Date - $sonT.Date).TotalDays }
+        $res[$h.AtId] = [pscustomobject]@{
+            SonTarih = $(if ($sonT -gt [datetime]::MinValue) { $sonT.ToString('dd.MM.yyyy') } else { '' })
+            Gun      = $gun
+            Hip      = [string]$son.Hip
+            Pist     = [string]$son.Pist
+            Tur      = [string]$son.Tur
+            Jokey    = [string]$son.Jokey
+            Durum    = [string]$son.Durum
+            Son      = $son.Sureler
+            EnIyi    = $enIyi
+            Adet     = $liste.Count
+        }
+    }
+    return $res
+}
 function ConvertFrom-HtmlTable([string]$html) {
     $result = @()
     $tables = [regex]::Matches($html, '(?s)<table[^>]*>(.*?)</table>')
@@ -470,7 +580,7 @@ function Build-Surfaces($race, $histCache) {
             if (-not $UseCacheOnly) {
                 $u = "$script:Base/TR/YarisSever/Query/ConnectedPage/AtKosuBilgileri?1=1&QueryParameter_AtId=$($h.AtId)&Era=today"
                 $html = Invoke-Tjk $u -TimeoutSec 10
-                if ($html) { $hist = Get-HorseHistory $html }
+                if ($html) { $hist = Get-HorseHistory $html; $script:histOK[$h.AtId] = $true }
             }
             $histCache[$h.AtId] = $hist
         }
@@ -505,7 +615,7 @@ function Ensure-Histories($race, $histCache) {
         if (-not $UseCacheOnly) {
             $u = "$script:Base/TR/YarisSever/Query/ConnectedPage/AtKosuBilgileri?1=1&QueryParameter_AtId=$($h.AtId)&Era=today"
             $html = Invoke-Tjk $u -TimeoutSec 10 -Cat 'athist'
-            if ($html) { $hist = @(Get-HorseHistory $html) }
+            if ($html) { $hist = @(Get-HorseHistory $html); $script:histOK[$h.AtId] = $true }
         }
         $histCache[$h.AtId] = $hist
     }
@@ -562,6 +672,8 @@ function Build-Distance($race, $histCache) {
 
 # ---- Baba (sire) karnesi: kendi gecmisleri zayif atlarda gercek veri, kotali ----
 $script:SireFile    = Join-Path $script:Root 'veri\baba.json'
+$script:IdmanDir    = Join-Path $script:Root 'veri\idman'
+$script:IdmanTtlSaat = 72     # idman sayfasi onbellegi (saat)
 $script:SireMax     = 300      # dosyada tutulacak en fazla baba
 $script:SireMinKosu = 30       # gostermek icin en az kosu
 $script:SireMinAt   = 3        # en az farkli at
@@ -730,15 +842,32 @@ function Build-HeadToHead($race, $histCache) {
 }
 
 function Build-JockeyHorseCombo($race, $histCache) {
+    # Bu atla bu jokeyin gecmisi. Iki ayrim onemli:
+    #  - Kosu=0 + Biliniyor=$true  => at gecmisi okundu, cift hic birlikte kosmamis
+    #  - Biliniyor=$false           => at gecmisi okunamadi (yorum yapilmaz)
     $res = @()
     foreach ($h in $race.Atlar) {
         if (-not $h.AtId) { continue }
-        if ($null -eq $histCache -or -not $histCache.ContainsKey($h.AtId)) { continue }
-        $hist = $histCache[$h.AtId]
         if (-not $h.Jokey) { continue }
-        $same = @($hist | Where-Object { $_.Jokey -and ($_.Jokey -eq $h.Jokey) })
+        $var = ($null -ne $histCache) -and $histCache.ContainsKey($h.AtId)
+        $hist = if ($var) { @($histCache[$h.AtId]) } else { @() }
+        $biliniyor = $var -and (($hist.Count -gt 0) -or $script:histOK.ContainsKey($h.AtId))
+        if (-not $biliniyor) { continue }
+        # Bugunun kosusu gecmiste gorunuyorsa (kosulduktan sonra) cift gecmisi
+        # sayilmasin; "daha once bindi mi" sorusu bu kosu haric.
+        $same = @($hist | Where-Object { $_.Jokey -and ($_.Jokey -eq $h.Jokey) -and ('' + $_.KosuKodu) -ne ('' + $race.KosuKodu) })
         $wins = @($same | Where-Object { $_.Sira -eq 1 }).Count
-        if ($same.Count -gt 0) { $res += [pscustomobject]@{ At=$h.At; Jokey=$h.Jokey; Kosu=$same.Count; Birinci=$wins } }
+        $top3 = @($same | Where-Object { $_.Sira -ge 1 -and $_.Sira -le 3 }).Count
+        $son = ''
+        if ($same.Count -gt 0) {
+            $sonTarih = [datetime]::MinValue
+            foreach ($s1 in $same) {
+                $d1 = [datetime]::MinValue
+                if ([datetime]::TryParseExact([string]$s1.Tarih, 'dd.MM.yyyy', $script:CIV, [Globalization.DateTimeStyles]::None, [ref]$d1) -and $d1 -gt $sonTarih) { $sonTarih = $d1 }
+            }
+            if ($sonTarih -gt [datetime]::MinValue) { $son = $sonTarih.ToString('dd.MM.yyyy') }
+        }
+        $res += [pscustomobject]@{ At=$h.At; Jokey=$h.Jokey; Kosu=$same.Count; Birinci=$wins; IlkUc=$top3; SonTarih=$son; Biliniyor=$true }
     }
     return $res
 }
@@ -1332,12 +1461,13 @@ function Build-DayData([string]$TarihStr, $queryOptions, $winsCache, $histCache,
             Write-Host ("   {0}. Koşu {1} [{2}] {3} at" -f $race.KosuNo, $race.Saat, $race.Tip, $race.Atlar.Count)
             $jockeyRank = @()
             if (-not $Hizli) { $jockeyRank = Rank-FromMap $race.Atlar $winsMap }
-            $surf = @{}; $h2h = $null; $combo = @(); $form = @(); $dist = @{}; $sireHints = @{}
+            $surf = @{}; $h2h = $null; $combo = @(); $form = @(); $dist = @{}; $sireHints = @{}; $idman = @{}
             if (-not $Hizli) {
                 $surf = Build-Surfaces $race $histCache
                 $h2h = Build-HeadToHead $race $histCache
                 $combo = Build-JockeyHorseCombo $race $histCache
                 $dist = Build-Distance $race $histCache
+                $idman = Build-Workouts $race
                 Update-SireStore $race $histCache $sireStore
                 $sireHints = Build-SireHints $race $histCache $sireStore
             } else {
@@ -1374,6 +1504,7 @@ function Build-DayData([string]$TarihStr, $queryOptions, $winsCache, $histCache,
                 BabaKarnesi=$sireHints
                 IkiliGecme=$h2h
                 JokeyAt=$combo
+                Idman=$idman
                 Form=$form
                 Konsensus=$consensus
                 Istatistik=$stats

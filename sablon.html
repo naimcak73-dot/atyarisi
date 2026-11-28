@@ -1017,7 +1017,14 @@ function panelOrigin(race){
     const orijin=[h.Baba,h.Anne].filter(Boolean).join(' – ')||'—';
     const kb = h.KisrakBaba?` <span class="small">/ KB: ${esc(h.KisrakBaba)}</span>`:'';
     let cnt='';
-    if(s){ cnt = `Kum: ${s.KumIlkUc}/${s.KumKosu} tabela · Çim: ${s.CimIlkUc}/${s.CimKosu} tabela`; }
+    if(s){
+      const bugun = race.Pist;
+      const kum = `Kum: <b>${s.KumKosu}</b> koşu · <b>${s.KumBirinci}</b> birinci · ${s.KumIlkUc} ilk-3`;
+      const cim = `Çim: <b>${s.CimKosu}</b> koşu · <b>${s.CimBirinci}</b> birinci · ${s.CimIlkUc} ilk-3`;
+      cnt = (bugun==='Kum') ? `${kum} <span class="small">← bugün kum</span><br>${cim}`
+            : (bugun==='Çim') ? `${cim} <span class="small">← bugün çim</span><br>${kum}`
+            : `${kum}<br>${cim}`;
+    }
     const bk = race.BabaKarnesi && race.BabaKarnesi[h.AtId];
     let baba='';
     if(bk){
@@ -1027,11 +1034,11 @@ function panelOrigin(race){
       if(bk.BandPct!=null) par.push(bk.Band+': %'+bk.BandPct);
       if(par.length) baba=`<div class="small">Baba karnesi (${esc(bk.Baba)}): ${par.join(' · ')} <span class="mut">(${bk.Kosu} koşu, ${bk.At} at)</span></div>`;
     }
-    rows+=`<div class="rank"><span>${esc(h.At)}<div class="small">${esc(orijin)}${kb}</div><div class="small">${esc(cnt)}</div>${baba}</span><span class="badge ${VCLS[v]||'b-yok'}">${VLABEL[v]||'—'}</span></div>`;
+    rows+=`<div class="rank"><span>${esc(h.At)}<div class="small">${esc(orijin)}${kb}</div><div class="small">${cnt}</div>${baba}</span><span class="badge ${VCLS[v]||'b-yok'}">${VLABEL[v]||'—'}</span></div>`;
   });
   if(!rows) return '';
-  return `<div class="panel"><h4>Kum/Çim tabela & orijin</h4>${rows}
-    <div class="note">Tabela = ilk 3 derece sayısı (atın geçmiş koşuları). "Kumcu/Çimci" yorumu bu sayılara göre. Baba karnesi yalnızca atın kendi geçmişi zayıfsa ve en az 30 koşu/3 at örnek varsa gösterilir.</div></div>`;
+  return `<div class="panel"><h4>Kum/Çim karnesi & orijin</h4>${rows}
+    <div class="note">Atın geçmiş koşuları: pist başına koşu, birincilik ve ilk-3 sayısı; bugünkü pist işaretli. "Kumcu/Çimci" yorumu bu sayılara göre. Baba karnesi yalnızca atın kendi geçmişi zayıfsa ve en az 30 koşu/3 at örnek varsa gösterilir.</div></div>`;
 }
 function panelForm(race){
   const arr=(race.Form||[]).filter(x=>x.Puan!=null).sort((a,b)=>b.Puan-a.Puan);
@@ -1045,9 +1052,33 @@ function panelConsensus(race){
   return `<div class="panel"><h4>Öne çıkanlar (konsensüs)</h4>${rows}<div class="note">HP + Form + Pist + Jokey + İkili geçme. Yatırım tavsiyesi değildir.</div></div>`;
 }
 function panelCombo(race){
-  const arr=race.JokeyAt||[]; if(!arr.length) return '';
-  let rows=''; arr.forEach(x=>{ rows+=`<div class="rank"><span>${esc(x.At)} <span class="small">/ ${esc(x.Jokey)}</span></span><span>${x.Kosu} koşu · <b>${x.Birinci}</b> birinci</span></div>`; });
-  return `<div class="panel"><h4>Bu jokey bu atı daha önce bindirdi mi?</h4>${rows}</div>`;
+  const arr=(race.JokeyAt||[]).filter(x=>x.Biliniyor!==false); if(!arr.length) return '';
+  let rows=''; arr.forEach(x=>{
+    const sag = (x.Kosu>0)
+      ? `${x.Kosu} biniş · <b>${x.Birinci}</b> birinci${x.IlkUc!=null?` · ${x.IlkUc} ilk-3`:''}${x.SonTarih?`<div class="small">son: ${esc(x.SonTarih)}</div>`:''}`
+      : `<span class="mut">bu atla ilk kez biniyor</span>`;
+    rows+=`<div class="rank"><span>${esc(x.At)} <span class="small">/ ${esc(x.Jokey)}</span></span><span>${sag}</span></div>`;
+  });
+  return `<div class="panel"><h4>Jokey–at geçmişi</h4>${rows}<div class="note">Jokeyin bu atla daha önceki binişleri (atın geçmiş koşularından). "İlk kez" = ikili geçmişi yok; 1-2 binişlik örnekler zayıftır.</div></div>`;
+}
+function panelWorkouts(race){
+  const W=race.Idman||{}; const keys=Object.keys(W); if(!keys.length) return '';
+  let rows='';
+  (race.Atlar||[]).forEach(h=>{
+    const w=W[h.AtId]; if(!w) return;
+    const sn=w.Son||{}, en=w.EnIyi||{};
+    const parts=[];
+    Object.keys(sn).sort((a,b)=>b-a).forEach(k=>{
+      const iyi=en[k]&&en[k]!==sn[k]?` <span class="small">(en iyi ${esc(en[k])})</span>`:'';
+      parts.push(`${k}m ${esc(sn[k])}${iyi}`);
+    });
+    const yas = (w.Gun!=null) ? (w.Gun+' gün önce' + (w.Gun>30 ? ' — uzun ara' : (w.Gun<=14 ? ' · yakın' : ''))) : '';
+    const ust = [w.SonTarih, yas, w.Hip, w.Pist, w.Tur, w.Jokey].filter(Boolean).map(esc).join(' · ');
+    rows+=`<div class="rank"><span>${esc(h.At)}<div class="small">${ust}</div><div class="small">${parts.join(' · ')||'derece yok'}</div></span><span class="small">${w.Adet} idman</span></div>`;
+  });
+  if(!rows) return '';
+  return `<div class="panel"><h4>Son idmanlar (antrenman)</h4>${rows}
+    <div class="note">TJK idman kayıtları: son galop/sprint tarihi, hipodrom, pist, idman jokeyi ve mesafe dereceleri. Derece küçükse daha hızlıdır; parantezdekiler atın o mesafedeki en iyi idman derecesidir. Form göstergesidir, tek başına yeterli değildir.</div></div>`;
 }
 function statsPanel(race){
   const s=race.Istatistik;
@@ -1159,7 +1190,7 @@ function raceCard(race, idx){
     const n=Number(h.Gny);
     return ' <span class="mut" style="font-weight:400">('+(Number.isFinite(n)?n.toFixed(2).replace('.',','):esc(h.Gny))+')</span>';
   };
-  const hasAnalysis = race.__detay || (race.JokeySira && race.JokeySira.length) || (race.IkiliGecme && race.IkiliGecme.Liste && race.IkiliGecme.Liste.length) || (race.Yuzey && Object.keys(race.Yuzey).length);
+  const hasAnalysis = race.__detay || (race.JokeySira && race.JokeySira.length) || (race.IkiliGecme && race.IkiliGecme.Liste && race.IkiliGecme.Liste.length) || (race.Yuzey && Object.keys(race.Yuzey).length) || (race.Idman && Object.keys(race.Idman).length);
   const raceCls = 'race';
   const jkAra = (race.Atlar||[]).map(h=>{
     if(!h.Jokey) return '';
@@ -1197,6 +1228,7 @@ function raceCard(race, idx){
         ${panelConsensus(race)}
         ${panelForm(race)}
         ${panelCombo(race)}
+        ${panelWorkouts(race)}
       </div>`
         : ''}
       <button class="btn-stats" onclick="event.stopPropagation(); analizYukle('${esc(race.KosuKodu)}')">${hasAnalysis?'Ayrıntılı analizi yenile':'Ayrıntılı analizi yükle (jokey · kum/çim · ikili geçme · istatistik)'}</button>

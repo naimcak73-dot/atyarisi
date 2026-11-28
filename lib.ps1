@@ -461,6 +461,7 @@ function Build-RaceAnalysis([string]$tarih, [string]$kosu, [string]$sehirId, [st
     $surf = Build-Surfaces $race $histCache
     $h2h = Build-HeadToHead $race $histCache
     $combo = Build-JockeyHorseCombo $race $histCache
+    $idman = Build-Workouts $race
     $sireHints = @{}
     try { $sireHints = Build-SireHints $race $histCache (Get-SireStore) } catch {}
     $form = Build-FormScore $race
@@ -488,7 +489,7 @@ function Build-RaceAnalysis([string]$tarih, [string]$kosu, [string]$sehirId, [st
     $genis = Build-ExtendedVerdict $race $form $jr $surf $combo
     return [pscustomobject]@{
         KosuKodu  = $kosu
-        JokeySira = $jr; Yuzey = $surf; IkiliGecme = $h2h; JokeyAt = $combo; BabaKarnesi = $sireHints
+        JokeySira = $jr; Yuzey = $surf; IkiliGecme = $h2h; JokeyAt = $combo; Idman = $idman; BabaKarnesi = $sireHints
         Form      = $form; Konsensus = $cons; Istatistik = $stats; Yorum = $yorum; GenisYorum = $genis
     }
 }
@@ -561,6 +562,10 @@ function Handle-Client($client, $config) {
             Send-File $stream (Join-Path $script:Root 'sw.js') 'application/javascript' 0
         } elseif ($path -eq '/logo.png') {
             Send-File $stream (Join-Path $script:Root 'logo.png') 'image/png' 3600
+        } elseif ($path -eq '/logo.webp') {
+            Send-File $stream (Join-Path $script:Root 'logo.webp') 'image/webp' 3600
+        } elseif ($path -eq '/logo-kucuk.webp') {
+            Send-File $stream (Join-Path $script:Root 'logo-kucuk.webp') 'image/webp' 3600
         } elseif ($path -match '^/icons/icon-\d+\.png$') {
             Send-File $stream (Join-Path (Join-Path $script:Root 'icons') (Split-Path $path -Leaf)) 'image/png'
         } elseif ($path -eq '/' -or $path -eq '/index.html') {
