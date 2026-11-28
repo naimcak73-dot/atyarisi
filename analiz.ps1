@@ -380,6 +380,19 @@ function IdmanSureSn([string]$s) {
     return $a * 60 + $b + $c / 100
 }
 
+# Idman sure nesnesi hem Hashtable (canli) hem PSCustomObject (disk onbellegi) olabilir
+function IdmanKeys($o) {
+    if ($null -eq $o) { return @() }
+    if ($o -is [System.Collections.IDictionary]) { return @($o.Keys | Where-Object { $null -ne $_ -and [string]$_ -ne '' }) }
+    $ad = @($o.PSObject.Properties.Name | Where-Object { $null -ne $_ -and [string]$_ -ne '' })
+    return $ad
+}
+function IdmanVal($o, $k) {
+    if ($null -eq $o) { return $null }
+    if ($o -is [System.Collections.IDictionary]) { return $o[$k] }
+    return $o.$k
+}
+
 # At basina idman ozeti (son idman + mesafe rekorlari). Onbellekli.
 function Build-Workouts($race) {
     $res = @{}
@@ -393,7 +406,12 @@ function Build-Workouts($race) {
             try { if (((Get-Date) - (Get-Item $f).LastWriteTime).TotalHours -lt $script:IdmanTtlSaat) { $taze = $true } } catch {}
         }
         if ($taze) {
-            try { $liste = @([IO.File]::ReadAllText($f, [Text.Encoding]::UTF8) | ConvertFrom-Json | Where-Object { $_ -and $_.Tarih }); if ($liste.Count -eq 0) { $taze = $false } } catch { $taze = $false }
+            try {
+                $oku = [IO.File]::ReadAllText($f, [Text.Encoding]::UTF8) | ConvertFrom-Json
+                $liste = @()
+                foreach ($sat in @($oku)) { if ($sat -and $sat.Tarih) { $liste += $sat } }
+                if ($liste.Count -eq 0) { $taze = $false }
+            } catch { $taze = $false }
         }
         if (-not $taze) {
             $liste = @()
@@ -415,8 +433,8 @@ function Build-Workouts($race) {
         }
         $enIyi = @{}
         foreach ($x in $liste) {
-            foreach ($k in $x.Sureler.Keys) {
-                $v = [string]$x.Sureler[$k]
+            foreach ($k in @(IdmanKeys $x.Sureler)) {
+                $v = [string](IdmanVal $x.Sureler $k)
                 if (-not $enIyi.ContainsKey($k)) { $enIyi[$k] = $v }
                 else {
                     if ((IdmanSureSn $v) -lt (IdmanSureSn ([string]$enIyi[$k]))) { $enIyi[$k] = $v }
@@ -912,6 +930,212 @@ function Build-Consensus($race, $surf, $h2h, $jockeyRank, $form) {
         $res += [pscustomobject]@{ At=$h.At; Puan=[math]::Round($score,0); Bilesenler=$parts }
     }
     return @($res | Sort-Object @{Expression='Puan';Descending=$true})
+}
+
+function Build-Selection($race, $surf, $dist, $idman, $stats, $form, $jockeyRank, $combo, $h2h, [string]$Tarih = '') {
+    # Sinyal ozeti + eleme (v1). Agirliklar toplam 1.00:
+    # Form .22, Pist .18, Mesafe .15, Tip/HP .15, Jokey .15, Idman .10, Ikili .05
+    $res = @()
+    if (-not $race -or -not $race.Atlar) { return $res }
+    $sinir = { param($v) [math]::Round([math]::Max(0.0, [math]::Min(100.0, [double]$v)), 0) }
+
+    $sikOrt = $null
+    if ($stats -and $stats.Siklet -and $stats.Siklet.Ortalama -ne $null) { $sikOrt = [double]$stats.Siklet.Ortalama }
+    $girenMap = @{}
+    if ($stats -and $stats.HpBantlariGiren) { foreach ($g in $stats.HpBantlariGiren) { $girenMap[[string]$g.Bant] = [double]$g.Oran } }
+    $jRateMax = 0.0
+    foreach ($j in @($jockeyRank)) { if ($j.Kosu -ge 20) { $r = [double]$j.Birincilik / [double]$j.Kosu; if ($r -gt $jRateMax) { $jRateMax = $r } } }
+
+    foreach ($h in $race.Atlar) {
+        $sig = [ordered]@{}
+        $not = @()
+        $score = 0.0
+
+        # --- Form (.22) ---
+        $fP = $null
+        foreach ($fx in @($form)) {
+            if ([string]$fx.At -eq [string]$h.At) { if ($fx.Puan -ne $null) { $fP = [double]$fx.Puan }; break }
+        }
+        $fS = if ($fP -ne $null) { $fP } else { 50.0 }
+        if ($fP -eq $null) { $not += 'form verisi yok' }
+        $sig['Form'] = & $sinir $fS
+        $score += 0.22 * $fS
+
+        # --- Pist (.18): bugünkü pistteki gerçek koşu/birincilik/ilk-3 oranı ---
+        $sf = if ($h.AtId) { $surf[$h.AtId] } else { $null }
+        $pS = 50.0; $pN = 0
+        if ($sf) {
+            $pN = 0; $pW = 0; $p3 = 0; $digerN = 0; $digerW = 0; $diger3 = 0
+            if ($race.Pist -eq 'Kum') { $pN = [int]$sf.KumKosu; $pW = [int]$sf.KumBirinci; $p3 = [int]$sf.KumIlkUc; $digerN = [int]$sf.CimKosu; $digerW = [int]$sf.CimBirinci; $diger3 = [int]$sf.CimIlkUc }
+            elseif ($race.Pist -eq 'Çim') { $pN = [int]$sf.CimKosu; $pW = [int]$sf.CimBirinci; $p3 = [int]$sf.CimIlkUc; $digerN = [int]$sf.KumKosu; $digerW = [int]$sf.KumBirinci; $diger3 = [int]$sf.KumIlkUc }
+            if ($pN -ge 1) {
+                $pS = 100.0 * (0.7 * ($p3 / [double]$pN) + 0.3 * ($pW / [double]$pN))
+                if ($pN -lt 3) { $pS = 50.0 + ($pS - 50.0) * 0.5 }
+            } elseif ($digerN -ge 2) {
+                # bugünkü pistte hiç koşmamış: diğer pistte iyiyse de ihtiyatlı puan
+                $dR = 0.7 * ($diger3 / [double]$digerN) + 0.3 * ($digerW / [double]$digerN)
+                $pS = 45.0 + 20.0 * $dR
+                $not += 'bu pistte koşmamış'
+            } else {
+                $not += 'pist geçmişi yok'
+            }
+            if ($pN -ge 2 -and $pW -eq 0 -and $p3 -eq 0) { $not += 'bu pistte ilk-3 yok' }
+        } else { $not += 'pist geçmişi yok' }
+        $sig['Pist'] = & $sinir $pS
+        $score += 0.18 * $pS
+
+        # --- Mesafe (.15) ---
+        $dd = if ($h.AtId) { $dist[$h.AtId] } else { $null }
+        $dS = 50.0
+        if ($dd) {
+            if ([int]$dd.Kosu -ge 1) {
+                $dS = 100.0 * (0.7 * ([double]$dd.IlkUc / [double]$dd.Kosu) + 0.3 * ([double]$dd.Birinci / [double]$dd.Kosu))
+                if ([int]$dd.Kosu -lt 2) { $dS = 50.0 + ($dS - 50.0) * 0.5 }
+            } elseif ([int]$dd.YakinKosu -ge 1) {
+                $wr = [double]$dd.YakinBirinci / [double]$dd.YakinKosu
+                $dS = 45.0 + 30.0 * $wr
+            } else { $not += 'bu mesafede geçmiş yok' }
+        } else { $not += 'mesafe geçmişi yok' }
+        $sig['Mesafe'] = & $sinir $dS
+        $score += 0.15 * $dS
+
+        # --- Tip/HP (.15): bant lifti + siklet ---
+        $tS = 50.0
+        if ($stats -and $h.HP -ne $null -and $stats.HpBantlari) {
+            $band = $null
+            foreach ($b in $stats.HpBantlari) {
+                $pp = ([string]$b.Bant) -split '-'
+                if ($pp.Count -ge 2 -and [double]$h.HP -ge [double]$pp[0] -and [double]$h.HP -le [double]$pp[1]) { $band = $b }
+            }
+            if ($band) {
+                $lift = [double]$band.Oran
+                if ($girenMap.ContainsKey([string]$band.Bant)) { $lift -= $girenMap[[string]$band.Bant] }
+                $tS = 50.0 + [math]::Max(-40.0, [math]::Min(40.0, $lift * 2.5))
+            }
+        }
+        if ($sikOrt -ne $null -and $h.Kilo -ne $null) {
+            $kf = $sikOrt - [double]$h.Kilo
+            $tS = $tS + [math]::Max(-8.0, [math]::Min(8.0, $kf * 2.0))
+        }
+        $sig['TipHP'] = & $sinir $tS
+        $score += 0.15 * $tS
+
+        # --- Jokey (.15) ---
+        $jS = 50.0
+        $jr = $null
+        foreach ($jx in @($jockeyRank)) { if ([string]$jx.JokeyId -eq [string]$h.JokeyId) { $jr = $jx; break } }
+        if ($jr -and [int]$jr.Kosu -ge 20 -and $jRateMax -gt 0) {
+            $r = [double]$jr.Birincilik / [double]$jr.Kosu
+            $jS = 40.0 + 60.0 * ($r / $jRateMax)
+        } elseif ($jr -and [int]$jr.Kosu -gt 0) { $not += 'jokey örnek az' }
+        $sig['Jokey'] = & $sinir $jS
+        $score += 0.15 * $jS
+
+        # --- Idman (.10): tazelik + derecenin rekora oranı ---
+        $iS = 40.0
+        $wd = if ($h.AtId) { $idman[$h.AtId] } else { $null }
+        if ($wd) {
+            $g = -1
+            if ($wd.Gun -ne $null) { $g = [int]$wd.Gun }
+            $rec = 50.0
+            if ($g -lt 0) { $rec = 50.0 }
+            elseif ($g -le 7) { $rec = 100.0 } elseif ($g -le 14) { $rec = 85.0 } elseif ($g -le 30) { $rec = 65.0 } elseif ($g -le 60) { $rec = 40.0 } else { $rec = 25.0; $not += 'idman eski' }
+            $spd = 50.0
+            $oranlar = @()
+            $iyiAd = @(IdmanKeys $wd.EnIyi)
+            foreach ($k in @(IdmanKeys $wd.Son)) {
+                if ($iyiAd -contains $k) {
+                    $sonSn = IdmanSureSn ([string](IdmanVal $wd.Son $k))
+                    $iyiSn = IdmanSureSn ([string](IdmanVal $wd.EnIyi $k))
+                    if ($sonSn -gt 0 -and $sonSn -lt [double]::MaxValue -and $iyiSn -gt 0 -and $iyiSn -lt [double]::MaxValue) {
+                        $oranlar += ($iyiSn / $sonSn)
+                    }
+                }
+            }
+            if ($oranlar.Count -gt 0) {
+                $ort = ($oranlar | Measure-Object -Average).Average
+                $spd = 50.0 + 500.0 * ($ort - 0.96)
+            }
+            $iS = 0.6 * $rec + 0.4 * $spd
+        } else { $not += 'idman kaydı yok' }
+        $sig['Idman'] = & $sinir $iS
+        $score += 0.10 * $iS
+
+        # --- Ikili geçme (.05) ---
+        $gS = 50.0
+        $h2 = $null
+        if ($h2h -and $h2h.Liste) { foreach ($hx in @($h2h.Liste)) { if ([string]$hx.AtId -eq [string]$h.AtId) { $h2 = $hx; break } } }
+        if ($h2 -and $h2.Ortak -ge 3) { $gS = 50.0 + [math]::Max(-30.0, [math]::Min(30.0, [double]$h2.Net * 8.0)) }
+        $sig['Ikili'] = & $sinir $gS
+        $score += 0.05 * $gS
+
+        $res += [pscustomobject]@{
+            At = $h.At
+            AtId = $h.AtId
+            Puan = [math]::Round([math]::Max(0.0, [math]::Min(100.0, $score)), 0)
+            Sinyaller = $sig
+            Notlar = @($not | Select-Object -Unique)
+            Agf = $h.AgfRank
+        }
+    }
+
+    $res = @($res | Sort-Object @{Expression='Puan';Descending=$true}, @{Expression='At';Descending=$false})
+
+    # --- Favori kiyasi: AGF ilk 4 icinde jokeyi bu ilde daha zayif olan geriye ---
+    $favNot = ''
+    $favList = @($race.Atlar | Where-Object { $_.AgfRank -ne $null -and [int]$_.AgfRank -ge 1 -and [int]$_.AgfRank -le 4 })
+    if ($favList.Count -ge 2) {
+        $oranlar = @{}
+        foreach ($h in $favList) {
+            $jr = $null
+            foreach ($jx in @($jockeyRank)) { if ([string]$jx.JokeyId -eq [string]$h.JokeyId) { $jr = $jx; break } }
+            if ($jr -and [int]$jr.Kosu -ge 20) { $oranlar[[string]$h.At] = [double]$jr.Birincilik / [double]$jr.Kosu }
+        }
+        if ($oranlar.Count -ge 2) {
+            $enIyiAt = ($oranlar.GetEnumerator() | Sort-Object Value -Descending | Select-Object -First 1)
+            foreach ($x in $res) {
+                if (-not $oranlar.ContainsKey([string]$x.At)) { continue }
+                $r = $oranlar[[string]$x.At]
+                if ($r -lt 0.6 * [double]$enIyiAt.Value -and [string]$x.At -ne [string]$enIyiAt.Key) {
+                    $x.Puan = [math]::Max(0, [int]$x.Puan - 5)
+                    $x.Notlar = @(@($x.Notlar) + 'favori ama jokey bu ilde zayıf')
+                }
+            }
+            $favNot = ("Favori kıyası: bu ilde jokey galibiyeti — {0}: %{1}" -f $enIyiAt.Key, [math]::Round(100.0 * [double]$enIyiAt.Value, 1))
+            $res = @($res | Sort-Object @{Expression='Puan';Descending=$true}, @{Expression='At';Descending=$false})
+        }
+    }
+
+    # Hedef: 1 favori adayi + 2 plase
+    $oncu = @()
+    for ($i = 0; $i -lt [math]::Min(3, $res.Count); $i++) {
+        $rol = if ($i -eq 0) { '1. seçim (favori adayı)' } elseif ($i -eq 1) { '2. seçim (plase)' } else { '3. seçim (plase)' }
+        $oncu += [pscustomobject]@{ At = $res[$i].At; Puan = $res[$i].Puan; Rol = $rol }
+    }
+
+    $sonuc = [pscustomobject]@{
+        Liste = $res
+        Onculer = $oncu
+        FavoriKiyasi = $favNot
+        Agirliklar = 'Form .22, Pist .18, Mesafe .15, Tip/HP .15, Jokey .15, Idman .10, Ikili .05'
+    }
+
+    # Karsilastirma icin kaydet (sonradan gercek sonuclarla kiyaslanacak)
+    try {
+        if ($race.KosuKodu) {
+            $dir = Join-Path $script:Root 'veri\secim'
+            if (-not (Test-Path $dir)) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }
+            $obj = [pscustomobject]@{
+                Tarih = $Tarih; KosuKodu = [string]$race.KosuKodu; KosuNo = [string]$race.KosuNo
+                Sehir = [string]$race.Sehir; Tip = [string]$race.Tip; Pist = [string]$race.Pist; Mesafe = [string]$race.Mesafe
+                Uretim = [DateTime]::UtcNow.AddHours(3).ToString('dd.MM.yyyy HH:mm')
+                Onculer = $oncu; FavoriKiyasi = $favNot
+                Liste = @($res | ForEach-Object { [pscustomobject]@{ At=$_.At; AtId=$_.AtId; Puan=$_.Puan; Sinyaller=$_.Sinyaller; Notlar=$_.Notlar; Agf=$_.Agf } })
+            }
+            [IO.File]::WriteAllText((Join-Path $dir ([string]$race.KosuKodu + '.json')), (ConvertTo-Json $obj -Depth 8 -Compress), (New-Object Text.UTF8Encoding($false)))
+        }
+    } catch {}
+    return $sonuc
 }
 
 function Build-ProgramVerdict($race, $form) {
@@ -1467,7 +1691,8 @@ function Build-DayData([string]$TarihStr, $queryOptions, $winsCache, $histCache,
                 $h2h = Build-HeadToHead $race $histCache
                 $combo = Build-JockeyHorseCombo $race $histCache
                 $dist = Build-Distance $race $histCache
-                $idman = Build-Workouts $race
+                # Idman ve Secim yalniz kosu ayrintisinda hesaplanir (gun listesi
+                # icin her at basina ekstra TJK istegi olur; sayfa dakikalarca bekler).
                 Update-SireStore $race $histCache $sireStore
                 $sireHints = Build-SireHints $race $histCache $sireStore
             } else {
@@ -1493,6 +1718,7 @@ function Build-DayData([string]$TarihStr, $queryOptions, $winsCache, $histCache,
                 }
             }
             $yorum = Build-Verdict $race $stats $consensus
+            $secim = $null
 
             $raceOut += [pscustomobject]@{
                 KosuKodu=$race.KosuKodu; KosuNo=$race.KosuNo; Saat=$race.Saat; Sehir=$race.Sehir; SehirId=$race.SehirId; Tip=$race.Tip; Grup=$race.Grup; Cinsiyet=$race.Cinsiyet; CinsiyetId=$race.CinsiyetId
@@ -1505,6 +1731,7 @@ function Build-DayData([string]$TarihStr, $queryOptions, $winsCache, $histCache,
                 IkiliGecme=$h2h
                 JokeyAt=$combo
                 Idman=$idman
+                Secim=$secim
                 Form=$form
                 Konsensus=$consensus
                 Istatistik=$stats

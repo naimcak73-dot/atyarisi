@@ -22,6 +22,8 @@
   }
   *{box-sizing:border-box}
   body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;background:var(--bg);color:var(--ink);line-height:1.45}
+  .hlinks{display:flex;gap:8px;margin:2px 0 10px;flex-wrap:wrap;align-items:center}
+  .hlinks a,.hlinks button{padding:5px 10px;border:1px solid var(--line);border-radius:8px;font-size:12.5px;color:inherit;text-decoration:none;background:none;cursor:pointer}
   header{position:sticky;top:0;z-index:20;background:var(--bg);border-bottom:1px solid var(--line);padding:12px 16px}
   /* Logo: sol tarafta dikey kutu; baslik + alt bilgi + Koşu türleri satiri saginda kalir */
   [hidden]{display:none!important}
@@ -204,6 +206,9 @@ aside::-webkit-scrollbar-thumb{background:#9aa7b4;border-radius:5px;border:1px s
     .ustSag .sub{font-size:12px}
     .ustSag .hrow{gap:6px}
     .ustSag .themetog{font-size:11.5px;padding:5px 8px}
+    .hlinks{flex-wrap:nowrap;overflow-x:auto;overflow-y:hidden;gap:6px;margin:2px 0 6px;padding-bottom:2px;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+    .hlinks::-webkit-scrollbar{display:none}
+    .hlinks a,.hlinks button{flex:0 0 auto;font-size:11.5px;padding:5px 9px;min-height:32px;white-space:nowrap}
   }
 </style>
 </head>
@@ -224,11 +229,11 @@ aside::-webkit-scrollbar-thumb{background:#9aa7b4;border-radius:5px;border:1px s
         </div>
       </div>
       <div class="sub" id="sub"></div>
-      <div style="display:flex;gap:8px;margin:2px 0 10px;flex-wrap:wrap">
-        <a href="turler.html" style="padding:5px 10px;border:1px solid #2a3140;border-radius:8px;font-size:12.5px;color:inherit;text-decoration:none">Koşu türleri</a>
-        <a href="jokeyler.html" style="padding:5px 10px;border:1px solid #2a3140;border-radius:8px;font-size:12.5px;color:inherit;text-decoration:none">Jokey başarısı</a>
-        <a href="jokey-matris.html" style="padding:5px 10px;border:1px solid #2a3140;border-radius:8px;font-size:12.5px;color:inherit;text-decoration:none">Jokey × Hipodrom</a>
-        <button id="gunSonucBtn" onclick="gunSonucCiz()" style="padding:5px 10px;border:1px solid #2a3140;border-radius:8px;font-size:12.5px;background:none;color:inherit;cursor:pointer">Günün sonuçları</button>
+      <div class="hlinks">
+        <a href="turler.html">Koşu türleri</a>
+        <a href="jokeyler.html">Jokey başarısı</a>
+        <a href="jokey-matris.html">Jokey × Hipodrom</a>
+        <button id="gunSonucBtn" type="button" onclick="gunSonucCiz()">Günün sonuçları</button>
       </div>
     </div>
   </div>
@@ -988,6 +993,25 @@ function horseTable(race){
     </tr></thead><tbody>${rows}</tbody></table></div>`;
 }
 
+function panelSelection(race){
+  const S=race.Secim; if(!S||!S.Liste||!S.Liste.length) return '';
+  const etiket={Form:'F',Pist:'P',Mesafe:'M',TipHP:'HP',Jokey:'J',Idman:'İ',Ikili:'2'};
+  let onc='';
+  (S.Onculer||[]).forEach((x,i)=>{
+    onc+=`<div class="rank"><span><b>${i+1}.</b> ${esc(x.At)} <span class="small">${esc(x.Rol||'')}</span></span><span><b>${x.Puan}</b> <span class="small">puan</span></span></div>`;
+  });
+  let rows='';
+  (S.Liste||[]).forEach(x=>{
+    const sig=x.Sinyaller||{};
+    const chips=Object.keys(etiket).filter(k=>sig[k]!=null).map(k=>etiket[k]+'<b>'+sig[k]+'</b>').join(' ');
+    const not=(x.Notlar&&x.Notlar.length)?`<div class="small mut">${esc(x.Notlar.join(' · '))}</div>`:'';
+    const agf=(x.Agf!=null&&x.Agf!==''&&x.Agf!==0)?`<span class="small">AGF${esc(x.Agf)}</span> `:'';
+    rows+=`<div class="rank"><span>${agf}${esc(x.At)}${not}</span><span><b>${x.Puan}</b><div class="small">${chips}</div></span></div>`;
+  });
+  const fk=S.FavoriKiyasi?`<div class="small">${esc(S.FavoriKiyasi)}</div>`:'';
+  return `<div class="panel"><h4>Seçim (sinyal özeti)</h4>${onc}${fk}${rows}
+    <div class="note">Ağırlıklar: ${esc(S.Agirliklar||'')}. Hedef: 1. seçim favori adayı, 2-3 plase. F=form, P=pist, M=mesafe, HP=tip/handikap, J=bu ilde jokey, İ=idman, 2=ikili geçme. Yatırım tavsiyesi değildir.</div></div>`;
+}
 function panelJockey(race){
   const arr=race.JokeySira||[];
   const yd=String(race.KosuKodu||'').charAt(0)==='-' || !!race.Yabanci;
@@ -1190,7 +1214,7 @@ function raceCard(race, idx){
     const n=Number(h.Gny);
     return ' <span class="mut" style="font-weight:400">('+(Number.isFinite(n)?n.toFixed(2).replace('.',','):esc(h.Gny))+')</span>';
   };
-  const hasAnalysis = race.__detay || (race.JokeySira && race.JokeySira.length) || (race.IkiliGecme && race.IkiliGecme.Liste && race.IkiliGecme.Liste.length) || (race.Yuzey && Object.keys(race.Yuzey).length) || (race.Idman && Object.keys(race.Idman).length);
+  const hasAnalysis = race.__detay || (race.JokeySira && race.JokeySira.length) || (race.IkiliGecme && race.IkiliGecme.Liste && race.IkiliGecme.Liste.length) || (race.Yuzey && Object.keys(race.Yuzey).length) || (race.Idman && Object.keys(race.Idman).length) || !!race.Secim;
   const raceCls = 'race';
   const jkAra = (race.Atlar||[]).map(h=>{
     if(!h.Jokey) return '';
@@ -1221,6 +1245,7 @@ function raceCard(race, idx){
       ${horseTable(race)}
       ${hasAnalysis
         ? `<div class="panels">
+        ${panelSelection(race)}
         ${panelJockey(race)}
         ${panelH2H(race)}
         ${panelOrigin(race)}

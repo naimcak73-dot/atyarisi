@@ -223,7 +223,13 @@ if ($payload) {
                 $kod = [string]$r.KosuKodu
                 if (-not $kod) { continue }
                 $hedef = Join-Path $veri ('analiz-' + ($kod -replace '[^A-Za-z0-9_-]', '_') + '.json')
-                if (Test-Path $hedef) { continue }
+                if (Test-Path $hedef) {
+                    # Eski şemalı analiz (Idman / jokey-at Biliniyor yok) varsa
+                    # yeniden üret; yoksa dosyayı koru (yeniden hesaplama yavaş).
+                    $eski = ''
+                    try { $eski = [IO.File]::ReadAllText($hedef, [Text.Encoding]::UTF8) } catch {}
+                    if (($eski -match '"Idman"') -and ($eski -match '"Biliniyor"') -and ($eski -match '"Secim"')) { continue }
+                }
                 # istatistigi sifirdan hesaplamak dakikalar suruyor; butce dolduysa
                 # onbellekten oku, eksikse kuyruga at (sayfa "Hazirlaniyor" gosterir)
                 $res = Build-RaceAnalysis $tarih $kod ([string]$r.SehirId) ([string]$r.Sehir) -AllowStatsBuild:(ButceVar)

@@ -462,6 +462,7 @@ function Build-RaceAnalysis([string]$tarih, [string]$kosu, [string]$sehirId, [st
     $h2h = Build-HeadToHead $race $histCache
     $combo = Build-JockeyHorseCombo $race $histCache
     $idman = Build-Workouts $race
+    $dist = Build-Distance $race $histCache
     $sireHints = @{}
     try { $sireHints = Build-SireHints $race $histCache (Get-SireStore) } catch {}
     $form = Build-FormScore $race
@@ -486,10 +487,11 @@ function Build-RaceAnalysis([string]$tarih, [string]$kosu, [string]$sehirId, [st
         }
     }
     $yorum = Build-Verdict $race $stats $cons
+    $secim = Build-Selection $race $surf $dist $idman $stats $form $jr $combo $h2h $tarih
     $genis = Build-ExtendedVerdict $race $form $jr $surf $combo
     return [pscustomobject]@{
         KosuKodu  = $kosu
-        JokeySira = $jr; Yuzey = $surf; IkiliGecme = $h2h; JokeyAt = $combo; Idman = $idman; BabaKarnesi = $sireHints
+        JokeySira = $jr; Yuzey = $surf; IkiliGecme = $h2h; JokeyAt = $combo; Idman = $idman; Secim = $secim; BabaKarnesi = $sireHints
         Form      = $form; Konsensus = $cons; Istatistik = $stats; Yorum = $yorum; GenisYorum = $genis
     }
 }
